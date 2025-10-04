@@ -1,89 +1,72 @@
-import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../core/network/dio_client.dart';
+import '../../../core/networks/api_client.dart';
 import '../../../core/storage/token_storage.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-
-class AuthUser {
-  final String id;
-  final String email;
-  final String? username;
-  final String? name;
-  final String? role;
-  final String? profilePictureUrl;
-  final String? phoneNumber;
-  final String? bio;
-  final String? website;
-
-  const AuthUser({
-    required this.id,
-    required this.email,
-    this.username,
-    this.name,
-    this.role,
-    this.profilePictureUrl,
-    this.phoneNumber,
-    this.bio,
-    this.website,
-  });
-
-  factory AuthUser.fromMap(Map<String, dynamic> m) => AuthUser(
-    id: (m['id'] ?? '').toString(),
-    email: (m['email'] ?? '').toString(),
-    username: m['username'] as String?,
-    name: m['name'] as String?,
-    role: m['role'] as String?,
-    profilePictureUrl: m['profilePictureUrl'] as String?,
-    phoneNumber: m['phoneNumber'] as String?,
-    bio: m['bio'] as String?,
-    website: m['website'] as String?,
-  );
-}
-
-final tokenStoreProvider = Provider<TokenStore>(
-  (ref) => TokenStore(const FlutterSecureStorage()),
-);
+import '../shared/auth_user.dart';
 
 final authRepositoryProvider = Provider<AuthRepository>((ref) {
   return AuthRepository(
-    ref.watch(dioClientProvider),
+    ref.watch(apiClientProvider),
     ref.watch(tokenStoreProvider),
   );
 });
 
 class AuthRepository {
-  AuthRepository(this._dio, this._tokens);
-  final Dio _dio;
+  final ApiClient _api;
   final TokenStore _tokens;
+
+  AuthRepository(this._api, this._tokens);
 
   Future<AuthUser> signIn({
     required String email,
     required String password,
   }) async {
-    final res = await _dio.post(
+    final res = await _api.post(
       '/login',
       data: {'email': email, 'password': password},
     );
+
     final data = res.data as Map<String, dynamic>;
+
+    // ✅ cek kalau gagal login
+    if (data['code'] != "200") {
+      throw Exception(data['message'] ?? 'Login gagal');
+    }
+
     final userMap = (data['user'] ?? data) as Map<String, dynamic>;
     final token = (data['token'] ?? data['accessToken']) as String;
+
     await _tokens.saveAccessToken(token);
     return AuthUser.fromMap(userMap);
   }
 
-  Future<AuthUser> register({
+  Future<void> register({
+    required String name,
+    required String username,
     required String email,
     required String password,
+    required String passwordRepeat,
   }) async {
-    final res = await _dio.post(
-      '/auth/register',
-      data: {'email': email, 'password': password},
+    final res = await _api.post(
+      '/register',
+      data: {
+        'name': name,
+        'username': username,
+        'email': email,
+        'password': password,
+        'passwordRepeat': passwordRepeat,
+        'profilePictureUrl': '',
+        'phoneNumber': '',
+        'bio': '',
+        'website': '',
+      },
     );
+
     final data = res.data as Map<String, dynamic>;
-    final userMap = (data['user'] ?? data) as Map<String, dynamic>;
-    final token = (data['token'] ?? data['accessToken']) as String;
-    await _tokens.saveAccessToken(token);
-    return AuthUser.fromMap(userMap);
+
+    // ✅ cek kalau API balikin error
+    if (data['code'] != "200") {
+      throw Exception(data['message'] ?? 'Registrasi gagal');
+    }
   }
 
   Future<void> signOut() async {
@@ -94,7 +77,7 @@ class AuthRepository {
     final at = await _tokens.getAccessToken();
     if (at == null) return null;
     try {
-      final res = await _dio.get('/auth/me');
+      final res = await _api.get('/auth/me');
       return AuthUser.fromMap(res.data as Map<String, dynamic>);
     } catch (_) {
       return null;

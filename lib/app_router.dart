@@ -2,40 +2,62 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:phoshar/features/profile/presentation/profile_page.dart';
 
-import 'app_router_refresh.dart'; // <- refreshListenableProvider
+import 'app_router_refresh.dart';
 import 'features/auth/controllers/auth_controller.dart';
-import 'features/auth/presentation/login_page.dart';
-import 'features/auth/presentation/register_page.dart';
+import 'features/auth/login/presentation/login_page.dart';
+import 'features/auth/register/presentation/register_page.dart';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
-  // Auth saat ini (AsyncValue<AuthUser?>)
   final auth = ref.watch(authControllerProvider);
-  // Listenable yang akan memaksa router refresh ketika auth berubah
   final refreshListenable = ref.watch(routerRefreshListenableProvider);
 
   return GoRouter(
     initialLocation: '/login',
-    refreshListenable: refreshListenable, // <- v16 masih support Listenable
+    refreshListenable: refreshListenable,
     routes: [
-      GoRoute(path: '/login', builder: (context, state) => const LoginPage()),
+      GoRoute(
+        path: '/profile',
+        builder: (context, state) => const ProfilePage(),
+      ),
+      GoRoute(
+        path: '/login',
+        builder: (context, state) => const LoginPage(),
+      ),
       GoRoute(
         path: '/register',
         builder: (context, state) => const RegisterPage(),
       ),
-      GoRoute(path: '/', builder: (context, state) => const _PlaceholderHome()),
+      GoRoute(
+        path: '/',
+        builder: (context, state) => const _PlaceholderHome(),
+      ),
     ],
     redirect: (context, state) {
-      // Cek login memakai AsyncValue yang ada sekarang
       final isLoggedIn = auth.asData?.value != null;
+      final onLogin = state.matchedLocation == '/login';
+      final onRegister = state.matchedLocation == '/register';
+      final onProfile = state.matchedLocation == '/profile';
 
-      // v16: GoRouterState masih punya matchedLocation
-      final onAuthRoute =
-          state.matchedLocation == '/login' ||
-          state.matchedLocation == '/register';
+      // 🚫 1. Jangan redirect apa pun saat di /register
+      // biar pas email sudah ada, halaman tetap di situ
+      if (onRegister) return null;
 
-      if (!isLoggedIn && !onAuthRoute) return '/login';
-      if (isLoggedIn && onAuthRoute) return '/';
+      // 🚫 2. Kalau masih loading (auth belum siap), jangan redirect
+      if (auth.isLoading) return null;
+
+      // ✅ 3. Kalau belum login dan bukan di login/register → ke login
+      if (!isLoggedIn && !onLogin && !onRegister) {
+        return '/login';
+      }
+
+      // ✅ 4. Kalau sudah login tapi masih di login/register → ke profile
+      if (isLoggedIn && (onLogin || onRegister)) {
+        return '/profile';
+      }
+
+      // ✅ 5. Selain itu, stay di halaman sekarang
       return null;
     },
   );

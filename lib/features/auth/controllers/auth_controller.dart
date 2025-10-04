@@ -1,7 +1,8 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../data/auth_repository.dart';
+import '../shared/auth_user.dart';
 
-// Riverpod 3: gunakan AsyncNotifier (bukan StateNotifierProvider)
 final authControllerProvider = AsyncNotifierProvider<AuthController, AuthUser?>(
   AuthController.new,
 );
@@ -13,9 +14,8 @@ class AuthController extends AsyncNotifier<AuthUser?> {
   Future<AuthUser?> build() async {
     _repo = ref.read(authRepositoryProvider);
     try {
-      // bootstrap: cek session jika ada token
       final user = await _repo.getCurrentUser();
-      return user; // bisa null jika belum login
+      return user;
     } catch (_) {
       return null;
     }
@@ -25,15 +25,36 @@ class AuthController extends AsyncNotifier<AuthUser?> {
     state = const AsyncLoading();
     state = await AsyncValue.guard(() async {
       final user = await _repo.signIn(email: email, password: password);
+      debugPrint("🔥 AuthController user: ${user.email}");
       return user;
     });
   }
 
-  Future<void> register(String email, String password) async {
+  Future<void> register({
+    required String name,
+    required String username,
+    required String email,
+    required String password,
+    required String passwordRepeat,
+  }) async {
     state = const AsyncLoading();
+    debugPrint('🟡 [AuthController] Mulai register...');
+
     state = await AsyncValue.guard(() async {
-      final user = await _repo.register(email: email, password: password);
-      return user;
+      try {
+        await _repo.register(
+          name: name,
+          username: username,
+          email: email,
+          password: password,
+          passwordRepeat: passwordRepeat,
+        );
+        debugPrint('🟢 [AuthController] Register sukses');
+        return null;
+      } catch (e) {
+        debugPrint('🔴 [AuthController] Register gagal: $e');
+        rethrow;
+      }
     });
   }
 

@@ -1,3 +1,4 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class TokenStore {
@@ -27,3 +28,7 @@ class TokenStore {
     await _storage.delete(key: _kRefresh);
   }
 }
+
+final tokenStoreProvider = Provider<TokenStore>((ref) {
+  return TokenStore(const FlutterSecureStorage());
+});
