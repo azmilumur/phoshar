@@ -2,6 +2,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:phoshar/core/layout/app_shell.dart';
+import 'package:phoshar/features/post/presentation/explore_page.dart';
+import 'package:phoshar/features/post/presentation/feed_page.dart';
+import 'package:phoshar/features/post/presentation/post_detail_page.dart';
 import 'package:phoshar/features/profile/presentation/profile_page.dart';
 
 import 'app_router_refresh.dart';
@@ -18,21 +22,46 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     refreshListenable: refreshListenable,
     routes: [
       GoRoute(
-        path: '/profile',
-        builder: (context, state) => const ProfilePage(),
+        path: '/',
+        builder:
+            (context, state) =>
+                const AppShell(currentIndex: 0, body: FeedPage()),
+        routes: [
+          GoRoute(
+            path: 'post/:id', // tanpa slash depan, jadi child dari shell
+            builder: (context, state) {
+              final postId = state.pathParameters['id']!;
+              return PostDetailPage(postId: postId);
+            },
+          ),
+        ],
+      ),
+
+      GoRoute(
+        path: '/feed',
+        builder:
+            (context, state) =>
+                const AppShell(currentIndex: 0, body: FeedPage()),
       ),
       GoRoute(
-        path: '/login',
-        builder: (context, state) => const LoginPage(),
+        path: '/explore',
+        builder:
+            (context, state) =>
+                const AppShell(currentIndex: 1, body: ExplorePage()),
       ),
+      GoRoute(
+        path: '/profile',
+        builder:
+            (context, state) =>
+                const AppShell(currentIndex: 2, body: ProfilePage()),
+      ),
+
+      GoRoute(path: '/login', builder: (context, state) => const LoginPage()),
       GoRoute(
         path: '/register',
         builder: (context, state) => const RegisterPage(),
       ),
-      GoRoute(
-        path: '/',
-        builder: (context, state) => const _PlaceholderHome(),
-      ),
+      GoRoute(path: '/', builder: (context, state) => const _PlaceholderHome()),
     ],
     redirect: (context, state) {
       final isLoggedIn = auth.asData?.value != null;
@@ -54,7 +83,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 
       // ✅ 4. Kalau sudah login tapi masih di login/register → ke profile
       if (isLoggedIn && (onLogin || onRegister)) {
-        return '/profile';
+        return '/feed';
       }
 
       // ✅ 5. Selain itu, stay di halaman sekarang

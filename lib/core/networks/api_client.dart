@@ -1,30 +1,68 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'dio_client.dart';
+import '../storage/token_storage.dart';
+import 'dio_client.dart'; // kalau kamu pakai setup dio yang sama
 
-class ApiClient {
-  final Dio _dio;
-  ApiClient(this._dio);
-
-  Future<Response<T>> get<T>(String path, {Map<String, dynamic>? query}) {
-    return _dio.get(path, queryParameters: query);
-  }
-
-  Future<Response<T>> post<T>(String path, {dynamic data}) {
-    return _dio.post(path, data: data);
-  }
-
-  Future<Response<T>> put<T>(String path, {dynamic data}) {
-    return _dio.put(path, data: data);
-  }
-
-  Future<Response<T>> delete<T>(String path, {dynamic data}) {
-    return _dio.delete(path, data: data);
-  }
-}
-
-// Provider ApiClient
 final apiClientProvider = Provider<ApiClient>((ref) {
-  final dio = ref.watch(dioClientProvider); // ambil dari dio_client.dart
+  final dio = ref.watch(dioClientProvider);
   return ApiClient(dio);
 });
+
+class ApiClient {
+  ApiClient(this._dio);
+  final Dio _dio;
+
+  Future<Response<T>> get<T>(
+    String path, {
+    Map<String, dynamic>? queryParameters, // <- OPSIONAL
+    Map<String, dynamic>? headers,
+  }) {
+    return _dio.get<T>(
+      path,
+      queryParameters: queryParameters,
+      options: Options(headers: headers),
+    );
+  }
+
+  Future<Response<T>> post<T>(
+    String path, {
+    dynamic data,
+    Map<String, dynamic>? queryParameters, // <- opsional juga
+    Map<String, dynamic>? headers,
+  }) {
+    return _dio.post<T>(
+      path,
+      data: data,
+      queryParameters: queryParameters,
+      options: Options(headers: headers),
+    );
+  }
+
+  Future<Response<T>> put<T>(
+    String path, {
+    dynamic data,
+    Map<String, dynamic>? queryParameters,
+    Map<String, dynamic>? headers,
+  }) {
+    return _dio.put<T>(
+      path,
+      data: data,
+      queryParameters: queryParameters,
+      options: Options(headers: headers),
+    );
+  }
+
+  Future<Response<T>> delete<T>(
+    String path, {
+    dynamic data,
+    Map<String, dynamic>? queryParameters,
+    Map<String, dynamic>? headers,
+  }) {
+    return _dio.delete<T>(
+      path,
+      data: data,
+      queryParameters: queryParameters,
+      options: Options(headers: headers),
+    );
+  }
+}
