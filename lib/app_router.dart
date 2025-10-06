@@ -1,66 +1,49 @@
-// lib/app_router.dart
+// lib/app_router.dart (potongan penting)
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import 'app_router_refresh.dart'; // <- refreshListenableProvider
-import 'features/auth/controllers/auth_controller.dart';
+import 'app_router_refresh.dart';
+import 'features/auth/controllers/session_controller.dart';
+import 'features/shell/bottom_nav_shell.dart';
+import 'features/home/presentation/home_page.dart';
+import 'features/posts/presentation/explore_page.dart';
+import 'features/posts/presentation/create_post_page.dart';
+import 'features/profile/presentation/profile_page.dart';
 import 'features/auth/presentation/login_page.dart';
 import 'features/auth/presentation/register_page.dart';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
-  // Auth saat ini (AsyncValue<AuthUser?>)
-  final auth = ref.watch(authControllerProvider);
-  // Listenable yang akan memaksa router refresh ketika auth berubah
-  final refreshListenable = ref.watch(routerRefreshListenableProvider);
+  final session = ref.watch(sessionControllerProvider);
+  final refresh = ref.watch(routerRefreshListenableProvider);
 
   return GoRouter(
     initialLocation: '/login',
-    refreshListenable: refreshListenable, // <- v16 masih support Listenable
+    refreshListenable: refresh,
     routes: [
-      GoRoute(path: '/login', builder: (context, state) => const LoginPage()),
-      GoRoute(
-        path: '/register',
-        builder: (context, state) => const RegisterPage(),
+      // auth routes
+      GoRoute(path: '/login', builder: (_, __) => const LoginPage()),
+      GoRoute(path: '/register', builder: (_, __) => const RegisterPage()),
+
+      // shell with bottom tabs
+      ShellRoute(
+        builder: (_, __, child) => BottomNavShell(child: child),
+        routes: [
+          GoRoute(path: '/', builder: (_, __) => const HomePage()),
+          GoRoute(path: '/explore', builder: (_, __) => const ExplorePage()),
+          GoRoute(path: '/create', builder: (_, __) => const CreatePostPage()),
+          GoRoute(path: '/profile', builder: (_, __) => const ProfilePage()),
+        ],
       ),
-      GoRoute(path: '/', builder: (context, state) => const _PlaceholderHome()),
     ],
     redirect: (context, state) {
-      // Cek login memakai AsyncValue yang ada sekarang
-      final isLoggedIn = auth.asData?.value != null;
-
-      // v16: GoRouterState masih punya matchedLocation
-      final onAuthRoute =
+      final loggedIn = session.asData?.value != null;
+      final onAuth =
           state.matchedLocation == '/login' ||
           state.matchedLocation == '/register';
-
-      if (!isLoggedIn && !onAuthRoute) return '/login';
-      if (isLoggedIn && onAuthRoute) return '/';
+      if (!loggedIn && !onAuth) return '/login';
+      if (loggedIn && onAuth) return '/'; // selesai login → ke Home tab
       return null;
     },
   );
 });
-
-class _PlaceholderHome extends StatelessWidget {
-  const _PlaceholderHome();
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Home (placeholder)')),
-      body: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text('Berhasil login! Nanti ganti jadi Feed Foto.'),
-            const SizedBox(height: 12),
-            FilledButton(
-              onPressed: () => context.go('/login'),
-              child: const Text('Ke Login'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}

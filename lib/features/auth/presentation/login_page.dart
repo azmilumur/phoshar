@@ -1,7 +1,9 @@
+// lib/features/auth/presentation/login_page.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../../auth/controllers/auth_controller.dart';
+
+import '../../auth/controllers/sign_in_controller.dart';
 import '../../../core/widgets/app_text_field.dart';
 import '../../../core/widgets/app_button.dart';
 
@@ -23,16 +25,30 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     super.dispose();
   }
 
+  Future<void> _submit() async {
+    final email = emailCtrl.text.trim();
+    final pass = passCtrl.text;
+    if (email.isEmpty || pass.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Email & password wajib diisi')),
+      );
+      return;
+    }
+    await ref.read(signInControllerProvider.notifier).signIn(email, pass);
+    // Router akan auto-redirect karena SessionController di-update saat login sukses.
+  }
+
   @override
   Widget build(BuildContext context) {
-    final state = ref.watch(authControllerProvider);
+    final signInState = ref.watch(signInControllerProvider);
 
-    ref.listen(authControllerProvider, (prev, next) {
+    // tampilkan error dari proses login (401 dsb.)
+    ref.listen(signInControllerProvider, (prev, next) {
       next.whenOrNull(
-        error: (e, _) => ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(e.toString()))),
-        data: (_) {},
+        error:
+            (e, _) => ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(SnackBar(content: Text(e.toString()))),
       );
     });
 
@@ -56,6 +72,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                   style: TextStyle(fontSize: 24, fontWeight: FontWeight.w600),
                 ),
                 const SizedBox(height: 16),
+
                 AppTextField(
                   controller: emailCtrl,
                   label: 'Email',
@@ -68,28 +85,17 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                   label: 'Password',
                   obscureText: true,
                   textInputAction: TextInputAction.done,
+                  onSubmitted: (_) => _submit(),
                 ),
                 const SizedBox(height: 16),
+
                 AppButton(
                   label: 'Masuk',
-                  isLoading: state.isLoading,
-                  onPressed: () async {
-                    final email = emailCtrl.text.trim();
-                    final pass = passCtrl.text;
-                    if (email.isEmpty || pass.isEmpty) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Email & password wajib diisi'),
-                        ),
-                      );
-                      return;
-                    }
-                    await ref
-                        .read(authControllerProvider.notifier)
-                        .signIn(email, pass);
-                  },
+                  isLoading: signInState.isLoading,
+                  onPressed: signInState.isLoading ? null : _submit,
                 ),
                 const SizedBox(height: 12),
+
                 TextButton(
                   onPressed: () => context.go('/register'),
                   child: const Text('Belum punya akun? Daftar'),
