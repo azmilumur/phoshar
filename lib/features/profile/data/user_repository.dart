@@ -1,7 +1,8 @@
-// lib/features/profile/data/user_repository.dart
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../../../core/network/dio_client.dart';
+import 'user_profile.dart';
 
 final userRepositoryProvider = Provider<UserRepository>(
   (ref) => UserRepository(ref.watch(dioClientProvider)),
@@ -22,41 +23,48 @@ class UserRepository {
   UserRepository(this._dio);
   final Dio _dio;
 
-  /// FOLLOW (idempotent)
+  /// Karena tidak ada endpoint detail user, header user lain kita fallback minimal.
+  Future<UserProfile> getUserHeaderFallback(String userId) async {
+    // kamu bisa kembangkan pakai endpoint lain kalau tersedia
+    return UserProfile(id: userId, name: 'User', username: '', email: '');
+  }
+
+  /// POST /follow  { userIdFollow }
   Future<FollowResult> follow(String userId) async {
     try {
       await _dio.post('follow', data: {'userIdFollow': userId});
       return FollowResult.followed;
     } on DioException catch (e) {
       final d = e.response?.data;
-      final status = (d is Map)
+      final status = (d is Map
           ? (d['status']?.toString().toUpperCase())
-          : null;
+          : null);
       final msg = (d is Map && d['message'] is String)
           ? d['message'] as String
           : '';
       if (status == 'CONFLICT' ||
           msg.toLowerCase().contains('already follow')) {
-        // server-mu mengirim "404" + status "CONFLICT" → treat as success
         return FollowResult.alreadyFollowing;
       }
       rethrow;
     }
   }
 
-  /// UNFOLLOW
+  /// DELETE /unfollow/{userId}
   Future<void> unfollow(String userId) async {
     await _dio.delete('unfollow/$userId');
   }
 
-  /// Hitung total untuk **profil diri sendiri**
-  Future<FollowCounts> getMyCounts(String userId) async {
+  /// Counts untuk diri sendiri (pakai endpoint "my-")
+  Future<FollowCounts> getMyCounts(String myId) async {
+    // posts count
     final postsRes = await _dio.get(
-      'users-post/$userId',
+      'users-post/$myId',
       queryParameters: {'size': 1, 'page': 1},
     );
     final posts = (postsRes.data['data']?['totalItems'] as int?) ?? 0;
 
+    // followers & following
     final followersRes = await _dio.get(
       'my-followers',
       queryParameters: {'size': 1, 'page': 1},
@@ -76,7 +84,7 @@ class UserRepository {
     );
   }
 
-  /// Hitung total untuk **profil user lain**
+  /// Counts untuk user lain (pakai endpoint tanpa "my-")
   Future<FollowCounts> getCountsOf(String userId) async {
     final postsRes = await _dio.get(
       'users-post/$userId',
