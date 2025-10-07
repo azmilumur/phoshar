@@ -1,4 +1,6 @@
 // lib/features/posts/data/photo.dart
+import 'comment.dart';
+
 class BasicUser {
   final String id;
   final String username; // selalu ada (fallback ke prefix email)
@@ -41,46 +43,83 @@ class BasicUser {
 
 class Photo {
   final String id;
+  final String userId;
   final String imageUrl;
+
+  /// opsional dari server
   final String? caption;
   final int? totalLikes;
   final bool? isLike;
   final BasicUser? user;
+  final List<CommentModel>? comments;
 
-  /// Server kirim ISO string, contoh: "2023-11-04T00:51:43.551Z"
+  /// contoh: "2023-11-04T00:51:43.551Z"
   final String? createdAt;
 
   Photo({
     required this.id,
+    required this.userId,
     required this.imageUrl,
     this.caption,
     this.totalLikes,
     this.isLike,
     this.user,
     this.createdAt,
+    this.comments,
   });
 
   factory Photo.fromJson(Map<String, dynamic> m) => Photo(
     id: (m['id'] ?? '').toString(),
-    imageUrl: (m['imageUrl'] ?? '').toString(),
+    userId: (m['userId'] ?? m['user_id'] ?? '').toString(),
+    imageUrl: (m['imageUrl'] ?? m['image_url'] ?? '').toString(),
     caption: m['caption'] as String?,
     totalLikes: (m['totalLikes'] as num?)?.toInt(),
     isLike: m['isLike'] as bool?,
-    user: m['user'] == null
-        ? null
-        : BasicUser.fromJson(m['user'] as Map<String, dynamic>),
+    user: m['user'] is Map<String, dynamic>
+        ? BasicUser.fromJson(m['user'] as Map<String, dynamic>)
+        : null,
     createdAt: m['createdAt']?.toString(),
+    comments: (m['comments'] as List?)
+        ?.whereType<Map>()
+        .map((e) => CommentModel.fromMap(e.cast<String, dynamic>()))
+        .toList(),
   );
 
-  /// untuk sorting DESC dengan aman
-  int get createdAtEpoch {
-    final s = createdAt;
-    if (s == null || s.isEmpty) return 0;
-    final dt = DateTime.tryParse(s); // "Z" -> UTC aman
-    return dt?.millisecondsSinceEpoch ?? 0;
+  Photo copyWith({
+    String? id,
+    String? userId,
+    String? imageUrl,
+    String? caption,
+    bool? isLike,
+    int? totalLikes,
+    BasicUser? user,
+    List<CommentModel>? comments,
+    String? createdAt,
+  }) {
+    return Photo(
+      id: id ?? this.id,
+      userId: userId ?? this.userId,
+      imageUrl: imageUrl ?? this.imageUrl,
+      caption: caption ?? this.caption,
+      isLike: isLike ?? this.isLike,
+      totalLikes: totalLikes ?? this.totalLikes,
+      user: user ?? this.user,
+      comments: comments ?? this.comments,
+      createdAt: createdAt ?? this.createdAt,
+    );
   }
 
-  /// kalau perlu tampilan "time ago" pakai local
-  DateTime? get createdAtLocal =>
-      createdAt == null ? null : DateTime.tryParse(createdAt!)?.toLocal();
+  // ===== Helper non-null untuk dipakai di UI =====
+  bool get liked => isLike ?? false; // aman buat kondisi
+  int get likeCount => totalLikes ?? 0; // aman buat angka likes
+
+  /// UTC DateTime dari createdAt (null kalau parsing gagal)
+  DateTime? get createdAtUtc =>
+      createdAt == null ? null : DateTime.tryParse(createdAt!);
+
+  /// buat sorting DESC (yang null dianggap paling tua)
+  int get createdAtEpoch => createdAtUtc?.millisecondsSinceEpoch ?? 0;
+
+  /// kalau perlu dipakai untuk "time ago" lokal
+  DateTime? get createdAtLocal => createdAtUtc?.toLocal();
 }

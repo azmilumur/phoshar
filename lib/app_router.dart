@@ -50,7 +50,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (_, __, child) => BottomNavShell(child: child),
         routes: [
           // Home (Feed 2 tab: Following & My Posts)
-          GoRoute(path: '/', builder: (_, __) => const FeedTwoTabsPage()),
+          GoRoute(path: '/', builder: (_, __) => const FeedPage()),
 
           // (opsional) Explore & Create
           GoRoute(path: '/explore', builder: (_, __) => const ExplorePage()),

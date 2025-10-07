@@ -283,16 +283,44 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
         title: const Text('Profile'),
         actions: [
           if (isMe)
-            IconButton(
-              tooltip: 'Logout',
-              onPressed: _loggingOut ? null : _logout,
-              icon: _loggingOut
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.logout),
+            PopupMenuButton<String>(
+              onSelected: (value) async {
+                if (value == 'logout') {
+                  final confirm = await showDialog<bool>(
+                    context: context,
+                    builder: (c) => AlertDialog(
+                      title: const Text('Logout'),
+                      content: const Text('Yakin ingin keluar?'),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(c, false),
+                          child: const Text('Batal'),
+                        ),
+                        FilledButton(
+                          onPressed: () => Navigator.pop(c, true),
+                          child: const Text('Logout'),
+                        ),
+                      ],
+                    ),
+                  );
+                  if (confirm == true) {
+                    await ref
+                        .read(sessionControllerProvider.notifier)
+                        .signOut();
+                    if (context.mounted)
+                      context.go(
+                        '/login',
+                      ); // guard router juga akan mengarah ke /login
+                  }
+                }
+                if (value == 'edit') {
+                  // TODO: buka halaman Edit Profile
+                }
+              },
+              itemBuilder: (context) => const [
+                PopupMenuItem(value: 'edit', child: Text('Edit Profile')),
+                PopupMenuItem(value: 'logout', child: Text('Logout')),
+              ],
             ),
         ],
       ),

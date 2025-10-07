@@ -56,6 +56,16 @@ class AuthRepository {
   final Dio _dio;
   final TokenStore _tokens;
 
+  Future<void> logout() async {
+    try {
+      await _dio.get('/logout'); // GET /api/v1/logout
+    } catch (_) {
+      // abaikan error jaringan/server; yang penting token dibersihkan
+    } finally {
+      await _tokens.clear();
+    }
+  }
+
   // LOGIN: simpan token + user untuk session restore
   Future<AuthUser> signIn({
     required String email,

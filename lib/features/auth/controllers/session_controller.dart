@@ -18,7 +18,15 @@ class SessionController extends AsyncNotifier<AuthUser?> {
   void setUser(AuthUser? user) => state = AsyncData(user);
 
   Future<void> signOut() async {
-    await _repo.signOut();
-    state = const AsyncData(null);
+    // boleh tampilkan loading singkat
+    state = const AsyncLoading();
+    try {
+      await _repo.logout();
+    } finally {
+      // kosongkan sesi
+      state = const AsyncData(null);
+      // optional: invalidate provider lain jika perlu
+      // ref.invalidate(postsRepositoryProvider);
+    }
   }
 }
