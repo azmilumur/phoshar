@@ -9,8 +9,7 @@ class PostModel {
   final int totalLikes;
   final UserModel? user;
   final List<CommentModel>? comments;
-  final DateTime? createdAt;
-  final DateTime? updatedAt;
+  final String? createdAt;
 
   PostModel({
     required this.id,
@@ -22,7 +21,6 @@ class PostModel {
     this.user,
     this.comments,
     this.createdAt,
-    this.updatedAt,
   });
 
   factory PostModel.fromMap(Map<String, dynamic> map) {
@@ -34,17 +32,36 @@ class PostModel {
       isLike: map['isLike'] ?? false,
       totalLikes: map['totalLikes'] ?? 0,
       user: map['user'] != null ? UserModel.fromMap(map['user']) : null,
-      comments: map['comments'] != null
-          ? (map['comments'] as List)
-              .map((c) => CommentModel.fromMap(c))
-              .toList()
-          : [],
-      createdAt: map['createdAt'] != null
-          ? DateTime.tryParse(map['createdAt'])
-          : null,
-      updatedAt: map['updatedAt'] != null
-          ? DateTime.tryParse(map['updatedAt'])
-          : null,
+      comments:
+          (map['comments'] as List?)
+              ?.map((e) => CommentModel.fromMap(e))
+              .toList(),
+      createdAt: map['createdAt'],
+    );
+  }
+
+  // 🆕 Tambahkan method copyWith biar bisa update sebagian field
+  PostModel copyWith({
+    String? id,
+    String? userId,
+    String? imageUrl,
+    String? caption,
+    bool? isLike,
+    int? totalLikes,
+    UserModel? user,
+    List<CommentModel>? comments,
+    String? createdAt,
+  }) {
+    return PostModel(
+      id: id ?? this.id,
+      userId: userId ?? this.userId,
+      imageUrl: imageUrl ?? this.imageUrl,
+      caption: caption ?? this.caption,
+      isLike: isLike ?? this.isLike,
+      totalLikes: totalLikes ?? this.totalLikes,
+      user: user ?? this.user,
+      comments: comments ?? this.comments,
+      createdAt: createdAt ?? this.createdAt,
     );
   }
 }
