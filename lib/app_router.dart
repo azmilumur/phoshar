@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:phoshar/features/posts/presentation/post_detail_page.dart';
 
 import 'features/posts/presentation/user_post_page.dart';
 
@@ -99,6 +100,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                 );
               },
             ),
+          ),
+
+          GoRoute(
+            path: 'post/:id', // tanpa slash depan, jadi child dari shell
+            builder: (context, state) {
+              final postId = state.pathParameters['id']!;
+              return PostDetailPage(postId: postId);
+            },
           ),
 
           // Posts milik user lain
