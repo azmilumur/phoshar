@@ -1,9 +1,10 @@
+// lib/features/profile/presentation/profile_page.dart
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../auth/controllers/session_controller.dart'; // AuthUser? me
+import '../../auth/controllers/session_controller.dart'; // sessionControllerProvider
 import '../../../core/network/dio_client.dart'; // dioClientProvider
 import '../../social/data/social_repository.dart'; // socialRepositoryProvider
 
@@ -18,13 +19,13 @@ class ProfilePage extends ConsumerStatefulWidget {
     this.initialEmail,
   });
 
-  /// user yang sedang dilihat (wajib)
+  /// ID user yang sedang dilihat
   final String userId;
 
-  /// seed status following (opsional)
+  /// Seed status following (opsional)
   final bool? initialIsFollowing;
 
-  /// seed header (opsional, berguna saat navigate dari list user)
+  /// Seed header (opsional – berguna saat navigate dari list users)
   final String? initialName;
   final String? initialUsername;
   final String? initialAvatarUrl;
@@ -41,6 +42,9 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   // ------- follow/unfollow -------
   bool _followBusy = false;
   bool _isFollowing = false;
+
+  // ------- logout -------
+  bool _loggingOut = false;
 
   // ------- counters -------
   int followersCount = 0;
@@ -68,7 +72,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
 
     _scroll.addListener(_onScroll);
 
-    // isi header untuk profil sendiri (fallback dari session)
+    // fallback isi header untuk profil sendiri (ambil dari session)
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final me = ref.read(sessionControllerProvider).asData?.value;
       final isMe = me?.id == widget.userId;
@@ -94,11 +98,11 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   // ================= LOADERS =================
 
   Future<void> _loadCounts() async {
-    final dio = ref.read(dioClientProvider);
     final social = ref.read(socialRepositoryProvider);
+    final dio = ref.read(dioClientProvider);
 
     try {
-      // followers & following => gunakan totalItems dari endpoint list
+      // followers / following: ambil totalItems via endpoints daftar
       final followers = await social.followersOf(
         widget.userId,
         page: 1,
@@ -110,12 +114,13 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
         size: 1,
       );
 
-      // posts count => dari users-post
+      // posts count via users-post
       final res = await dio.get(
         'users-post/${widget.userId}',
         queryParameters: {'page': 1, 'size': 1},
       );
-      final data = (res.data?['data'] as Map<String, dynamic>?);
+      final map = res.data as Map<String, dynamic>;
+      final data = map['data'] as Map<String, dynamic>?;
       final totalPosts = (data?['totalItems'] as num?)?.toInt() ?? 0;
 
       if (!mounted) return;
@@ -147,14 +152,21 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
         queryParameters: {'page': _page, 'size': _pageSize},
       );
 
-      final data = (res.data?['data'] as Map<String, dynamic>?);
+      final map = res.data as Map<String, dynamic>;
+      final data = map['data'] as Map<String, dynamic>?;
       final totalPages = (data?['totalPages'] as num?)?.toInt() ?? 1;
       final list = (data?['posts'] as List?) ?? const [];
 
-      final items = list
-          .whereType<Map>()
-          .map((m) => _PhotoItem.fromMap(m.cast<String, dynamic>()))
-          .toList();
+      final items =
+          list
+              .whereType<Map>()
+              .map((m) => _PhotoItem.fromMap(m.cast<String, dynamic>()))
+              .toList()
+            ..sort(
+              (a, b) => (b.createdAt ?? DateTime(0)).compareTo(
+                a.createdAt ?? DateTime(0),
+              ),
+            ); // terbaru dulu
 
       if (!mounted) return;
       setState(() {
@@ -218,6 +230,42 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     }
   }
 
+  Future<void> _logout() async {
+    final ok =
+        await showDialog<bool>(
+          context: context,
+          builder: (_) => AlertDialog(
+            title: const Text('Logout'),
+            content: const Text('Yakin ingin keluar?'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Batal'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Logout'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+    if (!ok) return;
+
+    setState(() => _loggingOut = true);
+    try {
+      await ref.read(sessionControllerProvider.notifier).signOut();
+      // GoRouter-mu punya redirect; otomatis ke /login.
+      // Bisa paksa:
+      // if (mounted) context.go('/login');
+    } catch (e) {
+      if (!mounted) return;
+      _toast('Gagal logout: $e');
+    } finally {
+      if (mounted) setState(() => _loggingOut = false);
+    }
+  }
+
   void _toast(String msg) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
@@ -231,13 +279,30 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     final isMe = me?.id == widget.userId;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Profile')),
+      appBar: AppBar(
+        title: const Text('Profile'),
+        actions: [
+          if (isMe)
+            IconButton(
+              tooltip: 'Logout',
+              onPressed: _loggingOut ? null : _logout,
+              icon: _loggingOut
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.logout),
+            ),
+        ],
+      ),
       body: RefreshIndicator(
         onRefresh: _refresh,
         child: ListView(
           controller: _scroll,
           padding: const EdgeInsets.all(16),
           children: [
+            // Header
             Row(
               children: [
                 CircleAvatar(
@@ -273,7 +338,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                 if (isMe)
                   OutlinedButton.icon(
                     onPressed: () {
-                      /* TODO: edit profile */
+                      // TODO: edit profile
                     },
                     icon: const Icon(Icons.edit),
                     label: const Text('Edit Profile'),
@@ -298,6 +363,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
             ),
             const SizedBox(height: 16),
 
+            // Counters
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
@@ -317,6 +383,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
 
             const Divider(height: 32),
 
+            // Grid posts
             GridView.builder(
               physics: const NeverScrollableScrollPhysics(),
               shrinkWrap: true,
@@ -395,7 +462,7 @@ class _PhotoItem {
   final String id;
   final String imageUrl;
   final String? caption;
-  final DateTime? createdAt; // <— TAMBAH
+  final DateTime? createdAt;
 
   const _PhotoItem({
     required this.id,
