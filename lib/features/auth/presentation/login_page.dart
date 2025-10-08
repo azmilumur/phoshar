@@ -90,12 +90,12 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                   height: 100,
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
-                      colors: [Colors.purple.shade400, Colors.pink.shade400],
+                      colors: [Color(0xFF4a6d72), Color(0xFF72959a)],
                     ),
                     shape: BoxShape.circle,
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.purple.withOpacity(0.3),
+                        color: Color(0xFF4a6d72).withOpacity(0.3),
                         blurRadius: 20,
                         offset: const Offset(0, 10),
                       ),
@@ -175,10 +175,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                     child: Ink(
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
-                          colors: [
-                            Colors.purple.shade400,
-                            Colors.pink.shade400,
-                          ],
+                          colors: [Color(0xFF4a6d72), Color(0xFF72959a)],
                         ),
                         borderRadius: BorderRadius.circular(16),
                         boxShadow: [

@@ -172,17 +172,14 @@ class _CreatePostPageState extends ConsumerState<CreatePostPage> {
                                 padding: const EdgeInsets.all(24),
                                 decoration: BoxDecoration(
                                   gradient: LinearGradient(
-                                    colors: [
-                                      Colors.purple.shade100,
-                                      Colors.pink.shade100,
-                                    ],
+                                    colors: [Color(0xFF4a6d72), Color(0xFF72959a)],
                                   ),
                                   shape: BoxShape.circle,
                                 ),
                                 child: Icon(
                                   Icons.add_photo_alternate_outlined,
                                   size: 60,
-                                  color: Colors.purple.shade400,
+                                  color: Colors.white,
                                 ),
                               ),
                               const SizedBox(height: 16),
@@ -344,15 +341,12 @@ class _CreatePostPageState extends ConsumerState<CreatePostPage> {
                 child: Container(
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
-                      colors: [
-                        Colors.purple.shade400,
-                        Colors.pink.shade400,
-                      ],
+                      colors: [Color(0xFF4a6d72), Color(0xFF72959a)],
                     ),
                     borderRadius: BorderRadius.circular(16),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.purple.withOpacity(0.3),
+                        color: Color(0xFF4a6d72),
                         blurRadius: 12,
                         offset: const Offset(0, 6),
                       ),

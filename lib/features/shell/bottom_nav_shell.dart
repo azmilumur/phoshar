@@ -10,7 +10,7 @@ class BottomNavShell extends StatelessWidget {
     if (loc.startsWith('/explore')) return 1;
     if (loc.startsWith('/create')) return 2;
     if (loc.startsWith('/profile')) return 3;
-    return 0; // '/'
+    return 0;
   }
 
   @override
@@ -36,7 +36,7 @@ class BottomNavShell extends StatelessWidget {
           elevation: 0,
           height: 70,
           labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
-          indicatorColor: Colors.purple.shade50,
+          indicatorColor: Colors.white,
           onDestinationSelected: (i) {
             switch (i) {
               case 0:
@@ -58,7 +58,7 @@ class BottomNavShell extends StatelessWidget {
               icon: Icon(Icons.home_outlined, color: Colors.grey[600]),
               selectedIcon: ShaderMask(
                 shaderCallback: (bounds) => LinearGradient(
-                  colors: [Colors.purple.shade400, Colors.pink.shade400],
+                  colors: [Color(0xFF4a6d72), Color(0xFF72959a)],
                 ).createShader(bounds),
                 child: const Icon(Icons.home, color: Colors.white),
               ),
@@ -68,7 +68,7 @@ class BottomNavShell extends StatelessWidget {
               icon: Icon(Icons.explore_outlined, color: Colors.grey[600]),
               selectedIcon: ShaderMask(
                 shaderCallback: (bounds) => LinearGradient(
-                  colors: [Colors.purple.shade400, Colors.pink.shade400],
+                  colors: [Color(0xFF4a6d72), Color(0xFF72959a)],
                 ).createShader(bounds),
                 child: const Icon(Icons.explore, color: Colors.white),
               ),
@@ -79,12 +79,12 @@ class BottomNavShell extends StatelessWidget {
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
-                    colors: [Colors.purple.shade400, Colors.pink.shade400],
+                    colors: [Color(0xFF4a6d72), Color(0xFF72959a)],
                   ),
                   borderRadius: BorderRadius.circular(12),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.purple.withOpacity(0.3),
+                      color: Color(0xFF4a6d72).withOpacity(0.3),
                       blurRadius: 8,
                       offset: const Offset(0, 2),
                     ),
@@ -96,12 +96,12 @@ class BottomNavShell extends StatelessWidget {
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
-                    colors: [Colors.purple.shade400, Colors.pink.shade400],
+                    colors: [Color(0xFF4a6d72), Color(0xFF72959a)],
                   ),
                   borderRadius: BorderRadius.circular(12),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.purple.withOpacity(0.5),
+                      color: Colors.white,
                       blurRadius: 12,
                       offset: const Offset(0, 4),
                     ),
@@ -115,7 +115,7 @@ class BottomNavShell extends StatelessWidget {
               icon: Icon(Icons.person_outline, color: Colors.grey[600]),
               selectedIcon: ShaderMask(
                 shaderCallback: (bounds) => LinearGradient(
-                  colors: [Colors.purple.shade400, Colors.pink.shade400],
+                  colors: [Color(0xFF4a6d72), Color(0xFF72959a)],
                 ).createShader(bounds),
                 child: const Icon(Icons.person, color: Colors.white),
               ),

@@ -53,10 +53,7 @@ class _FeedPageState extends ConsumerState<FeedPage> {
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
                 gradient: LinearGradient(
-                  colors: [
-                    Colors.purple.shade400,
-                    Colors.pink.shade400,
-                  ],
+                  colors: [Color(0xFF4a6d72), Color(0xFF72959a)],
                 ),
                 borderRadius: BorderRadius.circular(12),
               ),
@@ -116,7 +113,7 @@ class _FeedPageState extends ConsumerState<FeedPage> {
                         child: CircularProgressIndicator(
                           strokeWidth: 3,
                           valueColor: AlwaysStoppedAnimation<Color>(
-                            Colors.purple.shade400,
+                            Color(0xFF4a6d72),
                           ),
                         ),
                       ),
@@ -149,10 +146,7 @@ class _LoadingState extends StatelessWidget {
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
               gradient: LinearGradient(
-                colors: [
-                  Colors.purple.shade100,
-                  Colors.pink.shade100,
-                ],
+                colors: [Color(0xFF4a6d72), Color(0xFF72959a)],
               ),
               shape: BoxShape.circle,
             ),
@@ -162,7 +156,7 @@ class _LoadingState extends StatelessWidget {
               child: CircularProgressIndicator(
                 strokeWidth: 3,
                 valueColor: AlwaysStoppedAnimation<Color>(
-                  Colors.purple.shade400,
+                  Colors.white,
                 ),
               ),
             ),
@@ -341,10 +335,7 @@ class _EmptyState extends StatelessWidget {
             Container(
               decoration: BoxDecoration(
                 gradient: LinearGradient(
-                  colors: [
-                    Colors.purple.shade400,
-                    Colors.pink.shade400,
-                  ],
+                  colors: [Color(0xFF4a6d72), Color(0xFF72959a)],
                 ),
                 borderRadius: BorderRadius.circular(16),
                 boxShadow: [
