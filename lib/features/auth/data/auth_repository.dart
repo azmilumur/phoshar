@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../../core/network/dio_client.dart';
 import '../../../core/storage/token_storage.dart';
 
@@ -87,6 +88,21 @@ class AuthRepository {
   }
 
   // REGISTER: sesuai API kamu (TIDAK mengembalikan token) -> return void
+  Future<String> uploadImage(XFile file) async {
+    final bytes = await file.readAsBytes();
+    final form = FormData.fromMap({
+      'image': MultipartFile.fromBytes(bytes, filename: file.name),
+    });
+    final res = await _dio.post('upload-image', data: form);
+    final map = res.data as Map<String, dynamic>;
+    final url = (map['url'] ?? map['data']?['url'])?.toString();
+    if (url == null || url.isEmpty) {
+      throw Exception('Upload image gagal: URL tidak ditemukan.');
+    }
+    return url;
+  }
+
+  // Register user
   Future<void> register({
     required String name,
     required String username,
@@ -98,32 +114,18 @@ class AuthRepository {
     String? bio,
     String? website,
   }) async {
-    final payload = {
+    final body = {
       'name': name,
       'username': username,
       'email': email,
       'password': password,
       'passwordRepeat': passwordRepeat,
-      if (profilePictureUrl != null && profilePictureUrl.isNotEmpty)
-        'profilePictureUrl': profilePictureUrl,
-      if (phoneNumber != null && phoneNumber.isNotEmpty)
-        'phoneNumber': phoneNumber,
+      if (profilePictureUrl != null) 'profilePictureUrl': profilePictureUrl,
+      if (phoneNumber != null) 'phoneNumber': phoneNumber,
       if (bio != null) 'bio': bio,
       if (website != null) 'website': website,
     };
-
-    final res = await _dio.post(
-      'register',
-      data: payload,
-    ); // TANPA leading slash
-    if ((res.statusCode ?? 0) >= 400) {
-      throw DioException(
-        requestOptions: res.requestOptions,
-        response: res,
-        message: 'Register gagal',
-        type: DioExceptionType.badResponse,
-      );
-    }
+    await _dio.post('register', data: body);
     // no token -> tidak sentuh TokenStore di sini
   }
 

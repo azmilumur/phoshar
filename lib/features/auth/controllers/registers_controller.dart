@@ -1,53 +1,57 @@
+// lib/features/auth/controllers/registers_controller.dart
+import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:dio/dio.dart';
+import 'package:image_picker/image_picker.dart';
 import '../data/auth_repository.dart';
 
+/// Provider autoDispose
 final registerControllerProvider =
     AsyncNotifierProvider.autoDispose<RegisterController, void>(
       RegisterController.new,
     );
 
 class RegisterController extends AsyncNotifier<void> {
-  late final AuthRepository _repo;
+  // Ambil repo dari ref setiap kali dipakai (aman utk autoDispose)
+  AuthRepository get _repo => ref.read(authRepositoryProvider);
 
+  /// build() di v3 boleh `FutureOr<void>` dan boleh kosong
   @override
-  Future<void> build() async {
-    _repo = ref.read(authRepositoryProvider);
-  }
+  FutureOr<void> build() {}
 
+  /// Register:
+  /// - kalau `imageFile` ada, upload dulu → dapat URL
+  /// - kirim request register (pakai url di atas atau `profilePictureUrl` kalau diisi manual)
   Future<void> register({
     required String name,
     required String username,
     required String email,
     required String password,
     required String passwordRepeat,
-    String? profilePictureUrl,
+    XFile? imageFile,
     String? phoneNumber,
     String? bio,
     String? website,
+    String? profilePictureUrl, // jika user isi link langsung
   }) async {
     state = const AsyncLoading();
-    try {
+
+    state = await AsyncValue.guard(() async {
+      String? picUrl = profilePictureUrl;
+      if (imageFile != null) {
+        picUrl = await _repo.uploadImage(imageFile);
+      }
+
       await _repo.register(
         name: name,
         username: username,
         email: email,
         password: password,
         passwordRepeat: passwordRepeat,
-        profilePictureUrl: profilePictureUrl,
+        profilePictureUrl: picUrl,
         phoneNumber: phoneNumber,
         bio: bio,
         website: website,
       );
-      state = const AsyncData(null); // sukses; UI arahkan ke /login
-    } on DioException catch (e, st) {
-      final msg =
-          (e.response?.data is Map && e.response?.data['message'] is String)
-          ? e.response!.data['message'] as String
-          : (e.message ?? 'Register gagal');
-      state = AsyncError(Exception(msg), st);
-    } catch (e, st) {
-      state = AsyncError(Exception(e.toString()), st);
-    }
+    });
   }
 }

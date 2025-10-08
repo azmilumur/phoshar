@@ -1,7 +1,10 @@
 // lib/features/auth/presentation/register_page.dart
+import 'dart:io' show File;
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 import '../controllers/registers_controller.dart';
 
 class RegisterPage extends ConsumerStatefulWidget {
@@ -16,11 +19,23 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
   final emailCtrl = TextEditingController();
   final passCtrl = TextEditingController();
   final pass2Ctrl = TextEditingController();
-  final picCtrl = TextEditingController();
+
+  final picCtrl = TextEditingController(); // opsi: tempel URL manual
   final phoneCtrl = TextEditingController();
   final bioCtrl = TextEditingController();
   final webCtrl = TextEditingController();
+
+  XFile? picked; // <-- file hasil pilih gambar
   bool vis1 = false, vis2 = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // pastikan state provider fresh
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.invalidate(registerControllerProvider);
+    });
+  }
 
   @override
   void dispose() {
@@ -36,27 +51,47 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
     super.dispose();
   }
 
+  Future<void> _pickImage() async {
+    final picker = ImagePicker();
+    final f = await picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 85,
+    );
+    if (f != null) setState(() => picked = f);
+  }
+
   @override
   Widget build(BuildContext context) {
     final reg = ref.watch(registerControllerProvider);
 
     ref.listen(registerControllerProvider, (prev, next) {
-      next.whenOrNull(
-        error: (e, _) => ScaffoldMessenger.of(
+      if (next.hasError) {
+        ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text(e.toString()))),
-        data: (_) {
-          // sukses → server tidak kirim token → arahkan manual ke login
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Akun dibuat. Silakan login.')),
-          );
-          context.go('/login');
-        },
-      );
+        ).showSnackBar(SnackBar(content: Text(next.error.toString())));
+      }
+      if (prev?.isLoading == true && next.hasValue) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Akun dibuat. Silakan login.')),
+        );
+        context.go('/login');
+      }
     });
 
     InputDecoration deco(String label) =>
         InputDecoration(labelText: label, border: const OutlineInputBorder());
+
+    ImageProvider? _previewImage() {
+      if (picked != null) {
+        return kIsWeb
+            ? NetworkImage(picked!.path) // web menampilkan blob url
+            : FileImage(File(picked!.path));
+      }
+      if (picCtrl.text.trim().isNotEmpty) {
+        return NetworkImage(picCtrl.text.trim());
+      }
+      return null;
+    }
 
     return Scaffold(
       appBar: AppBar(title: const Text('Register')),
@@ -66,7 +101,28 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 480),
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                // Avatar + tombol pilih gambar
+                Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 32,
+                      backgroundImage: _previewImage(),
+                      child: _previewImage() == null
+                          ? const Icon(Icons.person)
+                          : null,
+                    ),
+                    const SizedBox(width: 12),
+                    TextButton.icon(
+                      onPressed: _pickImage,
+                      icon: const Icon(Icons.photo_library_outlined),
+                      label: const Text('Pilih Foto Profil'),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+
                 TextField(controller: nameCtrl, decoration: deco('Name')),
                 const SizedBox(height: 12),
                 TextField(
@@ -106,15 +162,17 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                   ),
                 ),
                 const SizedBox(height: 12),
+
+                // Opsi: user tempel URL langsung (kalau tidak mau upload)
                 TextField(
                   controller: picCtrl,
                   decoration: deco('Profile Picture URL (opsional)'),
                 ),
                 const SizedBox(height: 12),
+
                 TextField(
                   controller: phoneCtrl,
                   decoration: deco('Phone (opsional)'),
-                  keyboardType: TextInputType.phone,
                 ),
                 const SizedBox(height: 12),
                 TextField(
@@ -127,8 +185,8 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                   decoration: deco('Website (opsional)'),
                 ),
                 const SizedBox(height: 16),
+
                 SizedBox(
-                  width: double.infinity,
                   height: 48,
                   child: FilledButton(
                     onPressed: reg.isLoading
@@ -158,6 +216,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                               );
                               return;
                             }
+
                             await ref
                                 .read(registerControllerProvider.notifier)
                                 .register(
@@ -166,6 +225,8 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                                   email: emailCtrl.text.trim(),
                                   password: passCtrl.text,
                                   passwordRepeat: pass2Ctrl.text,
+                                  // prioritas upload; kalau tidak ada, pakai URL manual
+                                  imageFile: picked,
                                   profilePictureUrl: picCtrl.text.trim().isEmpty
                                       ? null
                                       : picCtrl.text.trim(),
@@ -181,7 +242,11 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                                 );
                           },
                     child: reg.isLoading
-                        ? const CircularProgressIndicator()
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
                         : const Text('Daftar'),
                   ),
                 ),
