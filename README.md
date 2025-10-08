@@ -5,9 +5,13 @@ Final Project PhoShar
 Team Project
 
 Minang
+
 Melati
+
 Azmil
+
 Amzar
+
 Base Url : https://photo-sharing-api-bootcamp.do.dibimbing.id
 
 ## Getting Started
