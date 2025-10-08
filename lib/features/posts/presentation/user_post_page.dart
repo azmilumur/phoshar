@@ -18,7 +18,9 @@ class UsersPostsPage extends ConsumerStatefulWidget {
 
   final String userId;
   final String? title;
-  final int? initialIndex; // index global (0 = terbaru)
+
+  /// 0 = post terbaru
+  final int? initialIndex;
   final int? pageSize;
 
   @override
@@ -30,14 +32,19 @@ class _UsersPostsPageState extends ConsumerState<UsersPostsPage> {
 
   late final int _size;
   final _scroll = ScrollController();
+
+  // data
   final _items = <Photo>[];
 
+  // paging state
   int _page = 1;
-  bool _loading = false; // loading halaman berikut
   bool _firstLoad = true; // loading awal
+  bool _loading = false; // loading API umum
+  bool _isLoadingMore = false; // spinner bawah
   bool _hasMore = true;
   String? _error;
 
+  // auto-jump ke initialIndex
   int? _targetIndex;
   bool _jumped = false;
   final _targetKey = GlobalKey();
@@ -47,6 +54,7 @@ class _UsersPostsPageState extends ConsumerState<UsersPostsPage> {
     super.initState();
     _size = widget.pageSize ?? _defaultSize;
     _targetIndex = widget.initialIndex;
+
     _scroll.addListener(_onScroll);
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
@@ -60,12 +68,16 @@ class _UsersPostsPageState extends ConsumerState<UsersPostsPage> {
 
   @override
   void dispose() {
+    _scroll.removeListener(_onScroll);
     _scroll.dispose();
     super.dispose();
   }
 
+  // ================== LOADERS ==================
+
   Future<void> _load({bool reset = false}) async {
     if (_loading) return;
+
     setState(() {
       _loading = true;
       _error = null;
@@ -115,18 +127,20 @@ class _UsersPostsPageState extends ConsumerState<UsersPostsPage> {
     }
   }
 
-  void _onScroll() {
-    if (!_hasMore || _loading) return;
-    if (_scroll.position.pixels > _scroll.position.maxScrollExtent - 480) {
-      _load();
-    }
-  }
-
   Future<void> _refresh() async {
     await _load(reset: true);
     if (_targetIndex != null) {
       await _loadUntilTarget();
       _tryJumpToTarget();
+    }
+  }
+
+  void _onScroll() async {
+    if (_loading || !_hasMore) return;
+    if (_scroll.position.pixels >= _scroll.position.maxScrollExtent - 200) {
+      setState(() => _isLoadingMore = true);
+      await _load();
+      if (mounted) setState(() => _isLoadingMore = false);
     }
   }
 
@@ -156,134 +170,372 @@ class _UsersPostsPageState extends ConsumerState<UsersPostsPage> {
     return 'now';
   }
 
+  // ================== UI ==================
+
   @override
   Widget build(BuildContext context) {
     final me = ref.watch(sessionControllerProvider).asData?.value;
 
-    Widget body;
+    return Scaffold(
+      backgroundColor: Colors.grey[50],
+      appBar: AppBar(
+        elevation: 0,
+        backgroundColor: Colors.white,
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Colors.purple.shade400, Colors.pink.shade400],
+                ),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(Icons.person, color: Colors.white, size: 20),
+            ),
+            const SizedBox(width: 12),
+            Text(
+              widget.title ?? 'Posts',
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                color: Colors.black87,
+              ),
+            ),
+          ],
+        ),
+      ),
+      body: RefreshIndicator(
+        onRefresh: _refresh,
+        child: Builder(
+          builder: (context) {
+            if (_error != null) {
+              return _ErrorState(
+                message: _error!,
+                onRetry: () => _load(reset: true),
+              );
+            }
+            if (_firstLoad) {
+              return const _LoadingState();
+            }
+            if (_items.isEmpty) {
+              return const _EmptyState();
+            }
 
-    if (_error != null) {
-      body = ListView(
+            final showBottomSpinner =
+                _isLoadingMore || (_loading && _items.isNotEmpty);
+
+            return ListView.builder(
+              controller: _scroll,
+              padding: EdgeInsets.zero,
+              itemCount: _items.length + (showBottomSpinner ? 1 : 0),
+              itemBuilder: (context, index) {
+                // spinner bawah
+                if (index == _items.length) {
+                  return Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Center(
+                      child: SizedBox(
+                        width: 32,
+                        height: 32,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 3,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            Colors.purple.shade400,
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                }
+
+                if (index < 0 || index >= _items.length) {
+                  return const SizedBox.shrink();
+                }
+
+                final p = _items[index];
+
+                // header user: kalau null & ini halaman self, fallback session
+                final headerUser =
+                    p.user ??
+                    (widget.userId == me?.id
+                        ? BasicUser(
+                            id: me!.id,
+                            username: me.username ?? me.email.split('@').first,
+                            email: me.email,
+                            profilePictureUrl: me.profilePictureUrl,
+                          )
+                        : null);
+
+                final item = Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (headerUser != null)
+                      ListTile(
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                        ),
+                        leading: CircleAvatar(
+                          backgroundImage:
+                              (headerUser.profilePictureUrl?.isNotEmpty ??
+                                  false)
+                              ? NetworkImage(headerUser.profilePictureUrl!)
+                              : null,
+                          child:
+                              (headerUser.profilePictureUrl == null ||
+                                  headerUser.profilePictureUrl!.isEmpty)
+                              ? const Icon(Icons.person)
+                              : null,
+                        ),
+                        title: Text(
+                          headerUser.username,
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                        subtitle: Text(_timeAgo(p.createdAtLocal)),
+                        onTap: () => context.go('/profile/${headerUser.id}'),
+                      ),
+
+                    // gambar + tap → detail
+                    AspectRatio(
+                      aspectRatio: 1,
+                      child: GestureDetector(
+                        onTap: () => context.push('/post/${p.id}'),
+                        child: Hero(
+                          tag: 'post-${p.id}',
+                          child: Image.network(
+                            p.imageUrl,
+                            fit: BoxFit.cover,
+                            errorBuilder: (c, e, s) => const Center(
+                              child: Icon(Icons.broken_image_outlined),
+                            ),
+                            loadingBuilder: (c, child, prog) => (prog == null)
+                                ? child
+                                : Container(
+                                    color: Colors.grey[200],
+                                    child: const Center(
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    ),
+                                  ),
+                          ),
+                        ),
+                      ),
+                    ),
+
+                    // caption & likes
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if ((p.totalLikes ?? 0) > 0)
+                            Text(
+                              '${p.totalLikes} likes',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          if ((p.caption ?? '').trim().isNotEmpty) ...[
+                            const SizedBox(height: 4),
+                            Text(
+                              p.caption!,
+                              maxLines: 3,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    const Divider(height: 1),
+                  ],
+                );
+
+                // tandai item target untuk auto-jump
+                if (_targetIndex != null && index == _targetIndex) {
+                  return KeyedSubtree(key: _targetKey, child: item);
+                }
+                return item;
+              },
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+// ===================== states (selaras FeedPage) =====================
+
+class _LoadingState extends StatelessWidget {
+  const _LoadingState();
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Padding(
-            padding: const EdgeInsets.all(24),
-            child: Text('Gagal memuat: $_error'),
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Colors.purple.shade100, Colors.pink.shade100],
+              ),
+              shape: BoxShape.circle,
+            ),
+            child: SizedBox(
+              width: 40,
+              height: 40,
+              child: CircularProgressIndicator(
+                strokeWidth: 3,
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  Colors.purple.shade400,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
+          Text(
+            'Memuat postingan...',
+            style: TextStyle(
+              fontSize: 16,
+              color: Colors.grey[600],
+              fontWeight: FontWeight.w500,
+            ),
           ),
         ],
-      );
-    } else if (_firstLoad) {
-      body = ListView(
-        children: const [
-          SizedBox(height: 160),
-          Center(child: CircularProgressIndicator()),
-        ],
-      );
-    } else if (_items.isEmpty) {
-      body = ListView(
-        children: const [
-          SizedBox(height: 120),
-          Center(child: Text('Belum ada post')),
-          SizedBox(height: 120),
-        ],
-      );
-    } else {
-      body = ListView.builder(
-        controller: _scroll,
-        itemCount: _items.length + (_hasMore ? 1 : 0),
-        itemBuilder: (context, index) {
-          if (index >= _items.length) {
-            return const Padding(
-              padding: EdgeInsets.symmetric(vertical: 16),
-              child: Center(child: CircularProgressIndicator()),
-            );
-          }
-          final p = _items[index];
+      ),
+    );
+  }
+}
 
-          final headerUser =
-              p.user ??
-              (widget.userId == me?.id
-                  ? BasicUser(
-                      id: me!.id,
-                      username: me.username ?? me.email.split('@').first,
-                      email: me.email,
-                      profilePictureUrl: me.profilePictureUrl,
-                    )
-                  : null);
+class _ErrorState extends StatelessWidget {
+  final String message;
+  final VoidCallback onRetry;
 
-          final itemContent = Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              if (headerUser != null)
-                ListTile(
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 12),
-                  leading: CircleAvatar(
-                    backgroundImage:
-                        (headerUser.profilePictureUrl?.isNotEmpty ?? false)
-                        ? NetworkImage(headerUser.profilePictureUrl!)
-                        : null,
-                    child:
-                        (headerUser.profilePictureUrl == null ||
-                            headerUser.profilePictureUrl!.isEmpty)
-                        ? const Icon(Icons.person)
-                        : null,
-                  ),
-                  title: Text(
-                    headerUser.username,
-                    style: const TextStyle(fontWeight: FontWeight.w600),
-                  ),
-                  subtitle: Text(_timeAgo(p.createdAtLocal)),
-                  onTap: () => context.go('/profile/${headerUser.id}'),
+  const _ErrorState({required this.message, required this.onRetry});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: Colors.red.shade50,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.error_outline,
+                size: 60,
+                color: Colors.red.shade400,
+              ),
+            ),
+            const SizedBox(height: 24),
+            const Text(
+              'Oops! Terjadi Kesalahan',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              message,
+              style: TextStyle(color: Colors.grey[600], fontSize: 14),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 32),
+            Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Colors.blue.shade400, Colors.blue.shade600],
                 ),
-
-              AspectRatio(
-                aspectRatio: 1,
-                child: Image.network(
-                  p.imageUrl,
-                  fit: BoxFit.cover,
-                  errorBuilder: (c, e, s) =>
-                      const Center(child: Icon(Icons.broken_image_outlined)),
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.blue.withOpacity(0.3),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: ElevatedButton.icon(
+                onPressed: onRetry,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.transparent,
+                  shadowColor: Colors.transparent,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 32,
+                    vertical: 16,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                ),
+                icon: const Icon(Icons.refresh_rounded, color: Colors.white),
+                label: const Text(
+                  'Coba Lagi',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
                 ),
               ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
 
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 8,
+class _EmptyState extends StatelessWidget {
+  const _EmptyState();
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(32),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Colors.purple.shade100, Colors.pink.shade100],
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if ((p.totalLikes ?? 0) > 0)
-                      Text(
-                        '${p.totalLikes} likes',
-                        style: const TextStyle(fontWeight: FontWeight.w600),
-                      ),
-                    if ((p.caption ?? '').trim().isNotEmpty) ...[
-                      const SizedBox(height: 4),
-                      Text(
-                        p.caption!,
-                        maxLines: 3,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                  ],
-                ),
+                shape: BoxShape.circle,
               ),
-              const Divider(height: 1),
-            ],
-          );
-
-          if (_targetIndex != null && index == _targetIndex) {
-            return KeyedSubtree(key: _targetKey, child: itemContent);
-          }
-          return itemContent;
-        },
-      );
-    }
-
-    return Scaffold(
-      appBar: AppBar(title: Text(widget.title ?? 'Posts')),
-      body: RefreshIndicator(onRefresh: _refresh, child: body),
+              child: Icon(
+                Icons.photo_outlined,
+                size: 80,
+                color: Colors.purple.shade400,
+              ),
+            ),
+            const SizedBox(height: 32),
+            const Text(
+              'Belum ada post',
+              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Pengguna ini belum memiliki postingan.',
+              style: TextStyle(fontSize: 16, color: Colors.grey[600]),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 120),
+          ],
+        ),
+      ),
     );
   }
 }
