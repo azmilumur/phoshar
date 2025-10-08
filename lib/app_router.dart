@@ -80,17 +80,18 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           ),
 
           // 👤 Other Profile
+          // app_router.dart
           GoRoute(
             path: '/profile/:id',
             builder: (_, s) {
-              final extra = (s.extra is Map) ? s.extra as Map : const {};
+              final x = (s.extra is Map) ? s.extra as Map : const {};
               return ProfilePage(
                 userId: s.pathParameters['id']!,
-                initialIsFollowing: extra['isFollowing'] == true,
-                initialName: extra['name'] as String?,
-                initialUsername: extra['username'] as String?,
-                initialAvatarUrl: extra['avatar'] as String?,
-                initialEmail: extra['email'] as String?,
+                initialIsFollowing: x['isFollowing'] as bool?,
+                initialName: x['name'] as String?,
+                initialUsername: x['username'] as String?,
+                initialAvatarUrl: x['avatarUrl'] as String?,
+                initialEmail: x['email'] as String?,
               );
             },
           ),

@@ -1,11 +1,11 @@
 // lib/features/post/presentation/post_detail_page.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:lottie/lottie.dart';
 
-import '../../auth/controllers/session_controller.dart'; // konsisten pakai session
-import '../../posts/controllers/post_detail_controller.dart'; // <-- pastikan nama file benar
-// kalau file kamu namanya `post_detail_contoller.dart`, ubah import di atas accordingly.
+import '../../auth/controllers/session_controller.dart'; // sessionControllerProvider
+import '../../posts/controllers/post_detail_controller.dart'; // postDetailControllerProvider
 
 class PostDetailPage extends ConsumerStatefulWidget {
   final String postId;
@@ -112,11 +112,10 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
             return const Center(child: CircularProgressIndicator());
           }
 
-          final liked = post.isLike ?? false; // <-- ganti dari post.liked
+          final liked = post.isLike ?? false;
           final totalLikes = post.totalLikes ?? 0;
           final caption = (post.caption ?? '').trim();
 
-          // helper boleh hapus komentar?
           bool canDeleteComment(String cUsername) {
             final myUsername = me?.username ?? me?.email.split('@').first;
             return myUsername != null && cUsername == myUsername;
@@ -129,7 +128,7 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // ================= CARD POST =================
+                      // ====== POST CARD ======
                       Container(
                         margin: const EdgeInsets.only(bottom: 8),
                         decoration: BoxDecoration(
@@ -145,83 +144,110 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            // header user
+                            // HEADER USER (tappable ke profile)
                             Padding(
                               padding: const EdgeInsets.all(16),
-                              child: Row(
-                                children: [
-                                  Container(
-                                    decoration: BoxDecoration(
-                                      shape: BoxShape.circle,
-                                      gradient: LinearGradient(
-                                        colors: [
-                                          Colors.purple.shade300,
-                                          Colors.pink.shade300,
+                              child: InkWell(
+                                onTap: () {
+                                  final u = post.user;
+                                  if (u == null) return;
+
+                                  final myId = me?.id;
+                                  if (myId != null && myId == u.id) {
+                                    // profil sendiri
+                                    context.push('/profile');
+                                  } else {
+                                    // profil orang lain + SEED header via `extra`
+                                    context.push(
+                                      '/profile/${u.id}',
+                                      extra: {
+                                        'username': u
+                                            .username, // tampilkan sebagai title
+                                        'name': u
+                                            .username, // kalau tidak punya name, pakai username
+                                        'avatarUrl':
+                                            u.profilePictureUrl, // url avatar
+                                        'email': u.email, // fallback subtitle
+                                        // 'isFollowing': true/false,        // opsional kalau kamu tahu statusnya
+                                      },
+                                    );
+                                  }
+                                },
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      decoration: BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        gradient: LinearGradient(
+                                          colors: [
+                                            Colors.purple.shade300,
+                                            Colors.pink.shade300,
+                                          ],
+                                        ),
+                                      ),
+                                      padding: const EdgeInsets.all(2),
+                                      child: CircleAvatar(
+                                        radius: 26,
+                                        backgroundColor: Colors.white,
+                                        child: CircleAvatar(
+                                          radius: 24,
+                                          backgroundImage:
+                                              (post
+                                                      .user
+                                                      ?.profilePictureUrl
+                                                      ?.isNotEmpty ??
+                                                  false)
+                                              ? NetworkImage(
+                                                  post.user!.profilePictureUrl!,
+                                                )
+                                              : null,
+                                          child:
+                                              (post
+                                                      .user
+                                                      ?.profilePictureUrl
+                                                      ?.isEmpty ??
+                                                  true)
+                                              ? const Icon(Icons.person)
+                                              : null,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            post.user?.username ?? 'Unknown',
+                                            style: const TextStyle(
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                          Text(
+                                            'Just now',
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              color: Colors.grey[600],
+                                            ),
+                                          ),
                                         ],
                                       ),
                                     ),
-                                    padding: const EdgeInsets.all(2),
-                                    child: CircleAvatar(
-                                      radius: 26,
-                                      backgroundColor: Colors.white,
-                                      child: CircleAvatar(
-                                        radius: 24,
-                                        backgroundImage:
-                                            (post
-                                                    .user
-                                                    ?.profilePictureUrl
-                                                    ?.isNotEmpty ??
-                                                false)
-                                            ? NetworkImage(
-                                                post.user!.profilePictureUrl!,
-                                              )
-                                            : null,
-                                        child:
-                                            (post
-                                                    .user
-                                                    ?.profilePictureUrl
-                                                    ?.isEmpty ??
-                                                true)
-                                            ? const Icon(Icons.person)
-                                            : null,
+                                    IconButton(
+                                      icon: Icon(
+                                        Icons.more_vert,
+                                        color: Colors.grey[600],
                                       ),
+                                      onPressed: () {},
                                     ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          post.user?.username ?? 'Unknown',
-                                          style: const TextStyle(
-                                            fontSize: 16,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
-                                        Text(
-                                          'Just now',
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            color: Colors.grey[600],
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  IconButton(
-                                    icon: Icon(
-                                      Icons.more_vert,
-                                      color: Colors.grey[600],
-                                    ),
-                                    onPressed: () {},
-                                  ),
-                                ],
+                                  ],
+                                ),
                               ),
                             ),
 
-                            // image
+                            // IMAGE
                             if (post.imageUrl.isNotEmpty)
                               Hero(
                                 tag: 'post-${post.id}',
@@ -249,7 +275,7 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
                                 ),
                               ),
 
-                            // like bar
+                            // LIKE BAR
                             Padding(
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 12,
@@ -290,7 +316,7 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
                               ),
                             ),
 
-                            // caption
+                            // CAPTION
                             if (caption.isNotEmpty)
                               Padding(
                                 padding: const EdgeInsets.symmetric(
@@ -320,7 +346,7 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
                         ),
                       ),
 
-                      // ================= COMMENTS =================
+                      // ====== COMMENTS ======
                       Container(
                         color: Colors.white,
                         padding: const EdgeInsets.all(16),
@@ -424,7 +450,7 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
                 ),
               ),
 
-              // ================= ADD COMMENT =================
+              // ====== ADD COMMENT ======
               _buildCommentInput(),
             ],
           );
