@@ -49,6 +49,33 @@ class PostsRepository {
     return items;
   }
 
+  Future<List<Photo>> getTimeline({
+    required String meId,
+    required int page,
+    required int size,
+  }) async {
+    // Ambil paralel biar cepat
+    final results = await Future.wait<List<Photo>>([
+      getFollowing(page: page, size: size),
+      getByUser(meId, page: page, size: size),
+    ]);
+
+    // Gabungkan & de-dupe by id
+    final map = <String, Photo>{};
+    for (final p in [...results[0], ...results[1]]) {
+      map[p.id] = p;
+    }
+
+    final merged = map.values.toList()
+      ..sort(
+        (a, b) => _toDateTime(b.createdAt).compareTo(_toDateTime(a.createdAt)),
+      );
+
+    // Batasi ke `size` biar konsisten
+    if (merged.length > size) return merged.sublist(0, size);
+    return merged;
+  }
+
   /// GET /following-post?page=&size=
   Future<List<Photo>> getFollowing({int page = 1, int size = 12}) async {
     final res = await _dio.get(

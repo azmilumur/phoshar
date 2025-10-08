@@ -103,7 +103,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           ),
 
           GoRoute(
-            path: 'post/:id', // tanpa slash depan, jadi child dari shell
+            path: '/post/:id', // tanpa slash depan, jadi child dari shell
             builder: (context, state) {
               final postId = state.pathParameters['id']!;
               return PostDetailPage(postId: postId);
