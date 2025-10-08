@@ -1,18 +1,21 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:dio/dio.dart';
 import '../data/auth_repository.dart';
 
 final registerControllerProvider =
     AsyncNotifierProvider.autoDispose<RegisterController, void>(
-      RegisterController.new,
-    );
+  RegisterController.new,
+);
 
 class RegisterController extends AsyncNotifier<void> {
   late final AuthRepository _repo;
 
   @override
-  Future<void> build() async {
+  FutureOr<void> build() {
+    // ❌ jangan async, cukup init biasa
     _repo = ref.read(authRepositoryProvider);
+    // ⚠️ Jangan return Future, cukup return void biar gak trigger AsyncData
   }
 
   Future<void> register({
@@ -21,10 +24,6 @@ class RegisterController extends AsyncNotifier<void> {
     required String email,
     required String password,
     required String passwordRepeat,
-    String? profilePictureUrl,
-    String? phoneNumber,
-    String? bio,
-    String? website,
   }) async {
     state = const AsyncLoading();
     try {
@@ -34,18 +33,8 @@ class RegisterController extends AsyncNotifier<void> {
         email: email,
         password: password,
         passwordRepeat: passwordRepeat,
-        profilePictureUrl: profilePictureUrl,
-        phoneNumber: phoneNumber,
-        bio: bio,
-        website: website,
       );
-      state = const AsyncData(null); // sukses; UI arahkan ke /login
-    } on DioException catch (e, st) {
-      final msg =
-          (e.response?.data is Map && e.response?.data['message'] is String)
-          ? e.response!.data['message'] as String
-          : (e.message ?? 'Register gagal');
-      state = AsyncError(Exception(msg), st);
+      state = const AsyncData(null);
     } catch (e, st) {
       state = AsyncError(Exception(e.toString()), st);
     }

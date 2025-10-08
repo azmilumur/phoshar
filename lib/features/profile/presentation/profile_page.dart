@@ -5,7 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../auth/controllers/session_controller.dart'; // sessionControllerProvider
-import '../../../core/network/dio_client.dart'; // dioClientProvider
+import '../../../core/networks/dio_client.dart'; // dioClientProvider
 import '../../social/data/social_repository.dart'; // socialRepositoryProvider
 
 class ProfilePage extends ConsumerStatefulWidget {
@@ -19,13 +19,8 @@ class ProfilePage extends ConsumerStatefulWidget {
     this.initialEmail,
   });
 
-  /// ID user yang sedang dilihat
   final String userId;
-
-  /// Seed status following (opsional)
   final bool? initialIsFollowing;
-
-  /// Seed header (opsional – berguna saat navigate dari list users)
   final String? initialName;
   final String? initialUsername;
   final String? initialAvatarUrl;
@@ -36,22 +31,13 @@ class ProfilePage extends ConsumerStatefulWidget {
 }
 
 class _ProfilePageState extends ConsumerState<ProfilePage> {
-  // ------- header dynamic -------
   String? _name, _username, _avatarUrl, _email;
-
-  // ------- follow/unfollow -------
   bool _followBusy = false;
   bool _isFollowing = false;
-
-  // ------- logout -------
-  bool _loggingOut = false;
-
-  // ------- counters -------
   int followersCount = 0;
   int followingCount = 0;
   int postsCount = 0;
 
-  // ------- grid & pagination -------
   final _photos = <_PhotoItem>[];
   final _scroll = ScrollController();
   static const _pageSize = 18;
@@ -62,17 +48,13 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   @override
   void initState() {
     super.initState();
-
-    // seed dari extra
     _isFollowing = widget.initialIsFollowing ?? false;
     _name = widget.initialName;
     _username = widget.initialUsername;
     _avatarUrl = widget.initialAvatarUrl;
     _email = widget.initialEmail;
-
     _scroll.addListener(_onScroll);
 
-    // fallback isi header untuk profil sendiri (ambil dari session)
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final me = ref.read(sessionControllerProvider).asData?.value;
       final isMe = me?.id == widget.userId;
@@ -95,26 +77,14 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     super.dispose();
   }
 
-  // ================= LOADERS =================
-
   Future<void> _loadCounts() async {
     final social = ref.read(socialRepositoryProvider);
     final dio = ref.read(dioClientProvider);
 
     try {
-      // followers / following: ambil totalItems via endpoints daftar
-      final followers = await social.followersOf(
-        widget.userId,
-        page: 1,
-        size: 1,
-      );
-      final following = await social.followingOf(
-        widget.userId,
-        page: 1,
-        size: 1,
-      );
+      final followers = await social.followersOf(widget.userId, page: 1, size: 1);
+      final following = await social.followingOf(widget.userId, page: 1, size: 1);
 
-      // posts count via users-post
       final res = await dio.get(
         'users-post/${widget.userId}',
         queryParameters: {'page': 1, 'size': 1},
@@ -129,10 +99,8 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
         followingCount = following.totalItems;
         postsCount = totalPosts;
       });
-    } on DioException catch (e) {
-      _toast(e.response?.data?['message']?.toString() ?? e.message ?? 'Error');
     } catch (e) {
-      _toast('Gagal memuat ringkasan: $e');
+      _showErrorSnackbar('Gagal memuat data profil');
     }
   }
 
@@ -157,16 +125,12 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       final totalPages = (data?['totalPages'] as num?)?.toInt() ?? 1;
       final list = (data?['posts'] as List?) ?? const [];
 
-      final items =
-          list
-              .whereType<Map>()
-              .map((m) => _PhotoItem.fromMap(m.cast<String, dynamic>()))
-              .toList()
-            ..sort(
-              (a, b) => (b.createdAt ?? DateTime(0)).compareTo(
-                a.createdAt ?? DateTime(0),
-              ),
-            ); // terbaru dulu
+      final items = list
+          .whereType<Map>()
+          .map((m) => _PhotoItem.fromMap(m.cast<String, dynamic>()))
+          .toList()
+        ..sort((a, b) => (b.createdAt ?? DateTime(0))
+            .compareTo(a.createdAt ?? DateTime(0)));
 
       if (!mounted) return;
       setState(() {
@@ -180,10 +144,8 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
         _hasMore = _page < totalPages;
         _page++;
       });
-    } on DioException catch (e) {
-      _toast(e.response?.data?['message']?.toString() ?? e.message ?? 'Error');
     } catch (e) {
-      _toast('Gagal memuat postingan: $e');
+      _showErrorSnackbar('Gagal memuat postingan');
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -201,8 +163,6 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     await _loadPosts(reset: true);
   }
 
-  // ================= ACTIONS =================
-
   Future<void> _toggleFollow() async {
     if (_followBusy) return;
     setState(() => _followBusy = true);
@@ -212,66 +172,89 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       if (_isFollowing) {
         final ok = await repo.unfollow(widget.userId);
         setState(() {
-          _isFollowing = ok; // false
+          _isFollowing = ok;
           followersCount = (followersCount - 1).clamp(0, 1 << 31);
         });
       } else {
         final ok = await repo.follow(widget.userId);
         setState(() {
           final was = _isFollowing;
-          _isFollowing = ok; // true (juga true kalau "already follow")
+          _isFollowing = ok;
           if (!was && _isFollowing) followersCount += 1;
         });
       }
     } catch (e) {
-      _toast('Gagal memproses: $e');
+      _showErrorSnackbar('Gagal memproses follow/unfollow');
     } finally {
       if (mounted) setState(() => _followBusy = false);
     }
   }
 
-  Future<void> _logout() async {
-    final ok =
-        await showDialog<bool>(
-          context: context,
-          builder: (_) => AlertDialog(
-            title: const Text('Logout'),
-            content: const Text('Yakin ingin keluar?'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('Batal'),
+  Future<void> _showLogoutDialog() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.red.shade50,
+                borderRadius: BorderRadius.circular(8),
               ),
-              FilledButton(
-                onPressed: () => Navigator.pop(context, true),
-                child: const Text('Logout'),
-              ),
-            ],
+              child: Icon(Icons.logout, color: Colors.red.shade400),
+            ),
+            const SizedBox(width: 12),
+            const Text('Logout'),
+          ],
+        ),
+        content: const Text('Yakin ingin keluar dari akun ini?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Batal'),
           ),
-        ) ??
-        false;
-    if (!ok) return;
+          Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Colors.red.shade400, Colors.red.shade600],
+              ),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.transparent,
+                shadowColor: Colors.transparent,
+              ),
+              child: const Text(
+                'Logout',
+                style: TextStyle(color: Colors.white),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
 
-    setState(() => _loggingOut = true);
-    try {
+    if (confirmed == true) {
       await ref.read(sessionControllerProvider.notifier).signOut();
-      // GoRouter-mu punya redirect; otomatis ke /login.
-      // Bisa paksa:
-      // if (mounted) context.go('/login');
-    } catch (e) {
-      if (!mounted) return;
-      _toast('Gagal logout: $e');
-    } finally {
-      if (mounted) setState(() => _loggingOut = false);
+      if (mounted) context.go('/login');
     }
   }
 
-  void _toast(String msg) {
+  void _showErrorSnackbar(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.redAccent,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
   }
-
-  // ================= UI =================
 
   @override
   Widget build(BuildContext context) {
@@ -279,47 +262,53 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     final isMe = me?.id == widget.userId;
 
     return Scaffold(
+      backgroundColor: Colors.grey[50],
       appBar: AppBar(
-        title: const Text('Profile'),
+        elevation: 0,
+        backgroundColor: Colors.white,
+        title: Text(
+          _username != null && _username!.isNotEmpty ? '@$_username' : 'Profile',
+          style: const TextStyle(
+            fontWeight: FontWeight.bold,
+            color: Colors.black87,
+          ),
+        ),
         actions: [
           if (isMe)
             PopupMenuButton<String>(
+              icon: Icon(Icons.more_vert, color: Colors.grey[700]),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
               onSelected: (value) async {
                 if (value == 'logout') {
-                  final confirm = await showDialog<bool>(
-                    context: context,
-                    builder: (c) => AlertDialog(
-                      title: const Text('Logout'),
-                      content: const Text('Yakin ingin keluar?'),
-                      actions: [
-                        TextButton(
-                          onPressed: () => Navigator.pop(c, false),
-                          child: const Text('Batal'),
-                        ),
-                        FilledButton(
-                          onPressed: () => Navigator.pop(c, true),
-                          child: const Text('Logout'),
-                        ),
-                      ],
-                    ),
-                  );
-                  if (confirm == true) {
-                    await ref
-                        .read(sessionControllerProvider.notifier)
-                        .signOut();
-                    if (context.mounted)
-                      context.go(
-                        '/login',
-                      ); // guard router juga akan mengarah ke /login
-                  }
+                  await _showLogoutDialog();
                 }
                 if (value == 'edit') {
-                  // TODO: buka halaman Edit Profile
+                  context.push('/profile/edit');
                 }
               },
-              itemBuilder: (context) => const [
-                PopupMenuItem(value: 'edit', child: Text('Edit Profile')),
-                PopupMenuItem(value: 'logout', child: Text('Logout')),
+              itemBuilder: (context) => [
+                const PopupMenuItem(
+                  value: 'edit',
+                  child: Row(
+                    children: [
+                      Icon(Icons.edit_outlined),
+                      SizedBox(width: 12),
+                      Text('Edit Profile'),
+                    ],
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: 'logout',
+                  child: Row(
+                    children: [
+                      Icon(Icons.logout, color: Colors.redAccent),
+                      SizedBox(width: 12),
+                      Text('Logout', style: TextStyle(color: Colors.redAccent)),
+                    ],
+                  ),
+                ),
               ],
             ),
         ],
@@ -328,154 +317,306 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
         onRefresh: _refresh,
         child: ListView(
           controller: _scroll,
-          padding: const EdgeInsets.all(16),
           children: [
-            // Header
-            Row(
-              children: [
-                CircleAvatar(
-                  radius: 36,
-                  backgroundImage:
-                      (_avatarUrl != null && _avatarUrl!.isNotEmpty)
-                      ? NetworkImage(_avatarUrl!)
-                      : null,
-                  child: (_avatarUrl == null || _avatarUrl!.isEmpty)
-                      ? const Icon(Icons.person, size: 32)
-                      : null,
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+            // Header Section
+            Container(
+              color: Colors.white,
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                children: [
+                  // Avatar & Info
+                  Row(
                     children: [
-                      Text(
-                        _name ?? 'User',
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w700,
+                      Container(
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: LinearGradient(
+                            colors: [
+                              Colors.purple.shade300,
+                              Colors.pink.shade300,
+                            ],
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.purple.withOpacity(0.3),
+                              blurRadius: 12,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        padding: const EdgeInsets.all(3),
+                        child: CircleAvatar(
+                          radius: 42,
+                          backgroundColor: Colors.white,
+                          child: CircleAvatar(
+                            radius: 39,
+                            backgroundImage: (_avatarUrl != null &&
+                                    _avatarUrl!.isNotEmpty)
+                                ? NetworkImage(_avatarUrl!)
+                                : null,
+                            child: (_avatarUrl == null || _avatarUrl!.isEmpty)
+                                ? const Icon(Icons.person, size: 40)
+                                : null,
+                          ),
                         ),
                       ),
-                      const SizedBox(height: 4),
-                      if (_username != null && _username!.isNotEmpty)
-                        Text('@$_username')
-                      else if (_email != null && _email!.isNotEmpty)
-                        Text(_email!),
+                      const SizedBox(width: 20),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              _name ?? 'User',
+                              style: const TextStyle(
+                                fontSize: 22,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 0.3,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            if (_username != null && _username!.isNotEmpty)
+                              Text(
+                                '@$_username',
+                                style: TextStyle(
+                                  color: Colors.grey[600],
+                                  fontSize: 14,
+                                ),
+                              )
+                            else if (_email != null && _email!.isNotEmpty)
+                              Text(
+                                _email!,
+                                style: TextStyle(
+                                  color: Colors.grey[600],
+                                  fontSize: 14,
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
                     ],
                   ),
-                ),
-                if (isMe)
-                  OutlinedButton.icon(
-                    onPressed: () {
-                      // TODO: edit profile
-                    },
-                    icon: const Icon(Icons.edit),
-                    label: const Text('Edit Profile'),
-                  )
-                else
-                  FilledButton.tonalIcon(
-                    onPressed: _followBusy ? null : _toggleFollow,
-                    icon: _followBusy
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : Icon(
-                            _isFollowing
-                                ? Icons.person_remove
-                                : Icons.person_add,
+
+                  const SizedBox(height: 20),
+
+                  // Stats Row
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _StatBox(
+                          value: postsCount,
+                          label: 'Posts',
+                        ),
+                      ),
+                      Container(width: 1, height: 40, color: Colors.grey[300]),
+                      Expanded(
+                        child: _StatBox(
+                          value: followersCount,
+                          label: 'Followers',
+                          onTap: () =>
+                              context.go('/users/${widget.userId}/followers'),
+                        ),
+                      ),
+                      Container(width: 1, height: 40, color: Colors.grey[300]),
+                      Expanded(
+                        child: _StatBox(
+                          value: followingCount,
+                          label: 'Following',
+                          onTap: () =>
+                              context.go('/users/${widget.userId}/following'),
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  // Action Button
+                  if (isMe)
+                    Container(
+                      width: double.infinity,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.grey[300]!),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          onTap: () => context.push('/profile/edit'),
+                          borderRadius: BorderRadius.circular(12),
+                          child: const Center(
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.edit_outlined, size: 20),
+                                SizedBox(width: 8),
+                                Text(
+                                  'Edit Profile',
+                                  style: TextStyle(fontWeight: FontWeight.w600),
+                                ),
+                              ],
+                            ),
                           ),
-                    label: Text(_isFollowing ? 'Unfollow' : 'Follow'),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 16),
-
-            // Counters
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                _CountBox(value: postsCount, label: 'Posts'),
-                _CountBox(
-                  value: followersCount,
-                  label: 'Followers',
-                  onTap: () => context.go('/users/${widget.userId}/followers'),
-                ),
-                _CountBox(
-                  value: followingCount,
-                  label: 'Following',
-                  onTap: () => context.go('/users/${widget.userId}/following'),
-                ),
-              ],
-            ),
-
-            const Divider(height: 32),
-
-            // Grid posts
-            GridView.builder(
-              physics: const NeverScrollableScrollPhysics(),
-              shrinkWrap: true,
-              itemCount: _photos.length,
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 3,
-                mainAxisSpacing: 1,
-                crossAxisSpacing: 1,
+                        ),
+                      ),
+                    )
+                  else
+                    Container(
+                      width: double.infinity,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: _isFollowing
+                              ? [Colors.grey.shade400, Colors.grey.shade600]
+                              : [
+                                  Colors.purple.shade400,
+                                  Colors.pink.shade400
+                                ],
+                        ),
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: [
+                          BoxShadow(
+                            color: (_isFollowing
+                                    ? Colors.grey
+                                    : Colors.purple)
+                                .withOpacity(0.3),
+                            blurRadius: 8,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: ElevatedButton.icon(
+                        onPressed: _followBusy ? null : _toggleFollow,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.transparent,
+                          shadowColor: Colors.transparent,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        icon: _followBusy
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : Icon(
+                                _isFollowing
+                                    ? Icons.person_remove_outlined
+                                    : Icons.person_add_outlined,
+                                color: Colors.white,
+                              ),
+                        label: Text(
+                          _isFollowing ? 'Unfollow' : 'Follow',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
               ),
-              itemBuilder: (context, index) {
-                final p = _photos[index];
-                return InkWell(
-                  onTap: () {
-                    final me = ref
-                        .read(sessionControllerProvider)
-                        .asData
-                        ?.value;
-                    final isMe = me?.id == widget.userId;
-
-                    // Buka feed “posts by user” dan mulai dari foto yang diketuk
-                    if (isMe) {
-                      context.go('/my-posts', extra: {'initialIndex': index});
-                    } else {
-                      context.go(
-                        '/users/${widget.userId}/posts',
-                        extra: {'initialIndex': index},
-                      );
-                    }
-                  },
-                  child: Container(
-                    decoration: BoxDecoration(
-                      border: Border(
-                        top: BorderSide(
-                          color: Theme.of(context).dividerColor.withOpacity(.2),
-                          width: .6,
-                        ),
-                        left: BorderSide(
-                          color: Theme.of(context).dividerColor.withOpacity(.2),
-                          width: .6,
-                        ),
-                      ),
-                    ),
-                    child: Image.network(
-                      p.imageUrl,
-                      fit: BoxFit.cover,
-                      errorBuilder: (c, e, s) => const Center(
-                        child: Icon(Icons.broken_image_outlined),
-                      ),
-                    ),
-                  ),
-                );
-              },
             ),
+
+            const SizedBox(height: 8),
+
+            // Grid Section
+            if (_photos.isEmpty && !_loading)
+              Container(
+                color: Colors.white,
+                padding: const EdgeInsets.all(48),
+                child: Column(
+                  children: [
+                    Icon(
+                      Icons.photo_library_outlined,
+                      size: 60,
+                      color: Colors.grey[400],
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Belum ada postingan',
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: Colors.grey[600],
+                      ),
+                    ),
+                  ],
+                ),
+              )
+            else
+              GridView.builder(
+                physics: const NeverScrollableScrollPhysics(),
+                shrinkWrap: true,
+                padding: EdgeInsets.zero,
+                itemCount: _photos.length,
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 3,
+                  mainAxisSpacing: 2,
+                  crossAxisSpacing: 2,
+                ),
+                itemBuilder: (context, index) {
+                  final p = _photos[index];
+                  return GestureDetector(
+                    onTap: () {
+                      if (isMe) {
+                        context.go('/my-posts', extra: {'initialIndex': index});
+                      } else {
+                        context.go(
+                          '/users/${widget.userId}/posts',
+                          extra: {'initialIndex': index},
+                        );
+                      }
+                    },
+                    child: Container(
+                      color: Colors.grey[200],
+                      child: Image.network(
+                        p.imageUrl,
+                        fit: BoxFit.cover,
+                        errorBuilder: (c, e, s) => Center(
+                          child: Icon(
+                            Icons.broken_image_outlined,
+                            color: Colors.grey[400],
+                          ),
+                        ),
+                        loadingBuilder: (context, child, progress) {
+                          if (progress == null) return child;
+                          return Center(
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              value: progress.expectedTotalBytes != null
+                                  ? progress.cumulativeBytesLoaded /
+                                      progress.expectedTotalBytes!
+                                  : null,
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  );
+                },
+              ),
 
             if (_loading && _photos.isNotEmpty)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 16),
-                child: Center(child: CircularProgressIndicator()),
+              Padding(
+                padding: const EdgeInsets.all(24),
+                child: Center(
+                  child: SizedBox(
+                    width: 32,
+                    height: 32,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 3,
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        Colors.purple.shade400,
+                      ),
+                    ),
+                  ),
+                ),
               ),
-            if (!_loading && _photos.isEmpty)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 48),
-                child: Center(child: Text('Belum ada postingan')),
-              ),
+
             const SizedBox(height: 24),
           ],
         ),
@@ -484,8 +625,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   }
 }
 
-// ================= helpers =================
-
+// Helper widgets
 class _PhotoItem {
   final String id;
   final String imageUrl;
@@ -500,37 +640,57 @@ class _PhotoItem {
   });
 
   factory _PhotoItem.fromMap(Map<String, dynamic> m) => _PhotoItem(
-    id: (m['id'] ?? '').toString(),
-    imageUrl: (m['imageUrl'] ?? '').toString(),
-    caption: m['caption'] as String?,
-    createdAt: m['createdAt'] != null
-        ? DateTime.tryParse(m['createdAt'].toString())
-        : null,
-  );
+        id: (m['id'] ?? '').toString(),
+        imageUrl: (m['imageUrl'] ?? '').toString(),
+        caption: m['caption'] as String?,
+        createdAt: m['createdAt'] != null
+            ? DateTime.tryParse(m['createdAt'].toString())
+            : null,
+      );
 }
 
-class _CountBox extends StatelessWidget {
-  const _CountBox({required this.value, required this.label, this.onTap});
+class _StatBox extends StatelessWidget {
+  const _StatBox({
+    required this.value,
+    required this.label,
+    this.onTap,
+  });
+
   final int value;
   final String label;
   final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    final child = Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          '$value',
-          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: Column(
+            children: [
+              Text(
+                '$value',
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 0.5,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 13,
+                  color: Colors.grey[600],
+                ),
+              ),
+            ],
+          ),
         ),
-        const SizedBox(height: 2),
-        Text(label),
-      ],
-    );
-    return InkWell(
-      onTap: onTap,
-      child: Padding(padding: const EdgeInsets.all(8), child: child),
+      ),
     );
   }
 }
+

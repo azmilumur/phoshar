@@ -1,7 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/network/dio_client.dart'; // dioClientProvider
+import '../../../core/networks/dio_client.dart'; // dioClientProvider
 
 /// ===== Models =====
 

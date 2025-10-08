@@ -4,34 +4,26 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'features/posts/presentation/user_post_page.dart';
-
-// Refresh + session
 import 'app_router_refresh.dart';
 import 'features/auth/controllers/session_controller.dart';
 
-// Auth
+// Auth pages
 import 'features/auth/presentation/login_page.dart';
 import 'features/auth/presentation/register_page.dart';
 
 // Shell (bottom nav)
 import 'features/shell/bottom_nav_shell.dart';
 
-// Home (Feed: Following & My Posts)
-// NOTE: pastikan file & class sesuai project kamu.
-// Jika class-nya `FeedTwoTabsPage` ada di feed_page.dart, import ini OK.
+// Feed / Explore / Create
 import 'features/posts/presentation/feed_page.dart';
-
-// (opsional) Explore & Create
 import 'features/posts/presentation/explore_page.dart';
 import 'features/posts/presentation/create_post_page.dart';
 
 // Profile
 import 'features/profile/presentation/profile_page.dart';
 
-// Users list (Followers/Following)
-// ❗️SAMAKAN dengan nama file yang kamu pakai: user_list_page.dart atau users_list_page.dart
+// Social
 import 'features/social/presentation/user_list_page.dart';
-// file ini harus mengekspor: UsersListPage & UsersListMode
 
 final appRouterProvider = Provider<GoRouter>((ref) {
   final session = ref.watch(sessionControllerProvider);
@@ -41,33 +33,50 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     initialLocation: '/login',
     refreshListenable: refresh,
     routes: [
-      // ===== Auth =====
-      GoRoute(path: '/login', builder: (_, __) => const LoginPage()),
-      GoRoute(path: '/register', builder: (_, __) => const RegisterPage()),
+      // ===== Auth Routes =====
+      GoRoute(
+        path: '/login',
+        builder: (_, __) => const LoginPage(),
+      ),
+      GoRoute(
+        path: '/register',
+        builder: (_, __) => const RegisterPage(),
+      ),
 
-      // ===== App (Shell + Bottom Tabs) =====
+      // ===== Main App (BottomNav Shell) =====
       ShellRoute(
         builder: (_, __, child) => BottomNavShell(child: child),
         routes: [
-          // Home (Feed 2 tab: Following & My Posts)
+          // 🏠 Home / Feed
           GoRoute(path: '/', builder: (_, __) => const FeedPage()),
 
-          // (opsional) Explore & Create
+          // 🔍 Explore
           GoRoute(path: '/explore', builder: (_, __) => const ExplorePage()),
+
+          // ➕ Create Post
           GoRoute(path: '/create', builder: (_, __) => const CreatePostPage()),
 
-          // Profile (self)
+          // 👤 My Profile
           GoRoute(
             path: '/profile',
             builder: (_, __) => Consumer(
               builder: (context, ref, _) {
                 final me = ref.watch(sessionControllerProvider).asData?.value;
-                return ProfilePage(userId: me!.id);
+                if (me == null) {
+                  // fallback ke login kalau belum ada user
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    context.go('/login');
+                  });
+                  return const Scaffold(
+                    body: Center(child: CircularProgressIndicator()),
+                  );
+                }
+                return ProfilePage(userId: me.id);
               },
             ),
           ),
 
-          // Profile (others) — dukung initialIsFollowing via extra
+          // 👤 Other Profile
           GoRoute(
             path: '/profile/:id',
             builder: (_, s) {
@@ -83,7 +92,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             },
           ),
 
-          // My Posts (self)
+          // 📸 My Posts
           GoRoute(
             path: '/my-posts',
             builder: (_, state) => Consumer(
@@ -92,8 +101,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                 final extra = (state.extra is Map)
                     ? state.extra as Map
                     : const {};
+                if (me == null) {
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    context.go('/login');
+                  });
+                  return const SizedBox();
+                }
                 return UsersPostsPage(
-                  userId: me!.id,
+                  userId: me.id,
                   title: 'My Posts',
                   initialIndex: extra['initialIndex'] as int?,
                 );
@@ -101,7 +116,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             ),
           ),
 
-          // Posts milik user lain
+          // 📸 Other user's posts
           GoRoute(
             path: '/users/:id/posts',
             builder: (_, state) {
@@ -116,7 +131,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             },
           ),
 
-          // ===== Users list routes =====
+          // 👥 Social Lists
           GoRoute(
             path: '/users/my-following',
             builder: (_, __) => const UsersListPage(
@@ -151,14 +166,23 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
     ],
 
-    // ===== Auth guard / redirect =====
+    // ===== Redirect Logic =====
     redirect: (context, state) {
       final loggedIn = session.asData?.value != null;
-      final onAuth =
-          state.matchedLocation == '/login' ||
-          state.matchedLocation == '/register';
-      if (!loggedIn && !onAuth) return '/login';
-      if (loggedIn && onAuth) return '/';
+      final onLogin = state.matchedLocation == '/login';
+      final onRegister = state.matchedLocation == '/register';
+
+      // 1️⃣ Saat app baru di-run, biar gak auto-login
+      // kalau hot restart, sessionController.build() belum restore
+      if (session.isLoading) return null;
+
+      // 2️⃣ kalau belum login → selalu ke /login (kecuali lagi di login/register)
+      if (!loggedIn && !onLogin && !onRegister) return '/login';
+
+      // 3️⃣ kalau udah login tapi masih di /login atau /register → ke home
+      if (loggedIn && (onLogin || onRegister)) return '/';
+
+      // 4️⃣ sisanya stay
       return null;
     },
   );

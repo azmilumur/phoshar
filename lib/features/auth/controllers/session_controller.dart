@@ -1,32 +1,32 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:phoshar/features/auth/controllers/register_controller.dart';
+import 'package:phoshar/features/auth/controllers/sign_in_controller.dart';
+import 'package:phoshar/features/auth/domain/auth_user.dart';
 import '../data/auth_repository.dart';
 
 final sessionControllerProvider =
     AsyncNotifierProvider<SessionController, AuthUser?>(SessionController.new);
 
 class SessionController extends AsyncNotifier<AuthUser?> {
-  late final AuthRepository _repo;
+  AuthRepository? _repo;
 
   @override
   Future<AuthUser?> build() async {
-    _repo = ref.read(authRepositoryProvider);
-    // Boleh null kalau belum login; kalau server-mu tak punya /auth/me, return null aja.
-    return _repo.restoreSession();
+    _repo ??= ref.read(authRepositoryProvider);
+    return null;
   }
 
-  /// Dipanggil oleh SignInController setelah login berhasil
   void setUser(AuthUser? user) => state = AsyncData(user);
 
   Future<void> signOut() async {
-    // boleh tampilkan loading singkat
     state = const AsyncLoading();
     try {
-      await _repo.logout();
+      await _repo?.signOut();
     } finally {
-      // kosongkan sesi
       state = const AsyncData(null);
-      // optional: invalidate provider lain jika perlu
-      // ref.invalidate(postsRepositoryProvider);
+
+      ref.invalidate(signInControllerProvider);
+      ref.invalidate(registerControllerProvider);
     }
   }
 }

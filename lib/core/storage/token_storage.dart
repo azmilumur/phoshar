@@ -1,6 +1,7 @@
 // lib/core/storage/token_storage.dart
 import 'dart:convert';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 class TokenStore {
   const TokenStore(this._storage);
@@ -21,7 +22,6 @@ class TokenStore {
     }
   }
 
-  // ⬇️ NEW: simpan/baca user (Map) sebagai JSON
   Future<void> saveUserMap(Map<String, dynamic> user) async {
     await _storage.write(key: _kUser, value: jsonEncode(user));
   }
@@ -36,9 +36,16 @@ class TokenStore {
     }
   }
 
+  // Future<void> clear() async {
+  //   await _storage.delete(key: _kAccess);
+  //   await _storage.delete(key: _kRefresh);
+  //   await _storage.delete(key: _kUser); // ⬅️ NEW
+  // }
   Future<void> clear() async {
-    await _storage.delete(key: _kAccess);
-    await _storage.delete(key: _kRefresh);
-    await _storage.delete(key: _kUser); // ⬅️ NEW
+    await _storage.deleteAll(); // pastikan ini async dan nunggu
   }
 }
+
+final tokenStoreProvider = Provider<TokenStore>((ref) {
+  return TokenStore(const FlutterSecureStorage());
+});

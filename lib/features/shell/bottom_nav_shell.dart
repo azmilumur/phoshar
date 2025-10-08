@@ -19,49 +19,112 @@ class BottomNavShell extends StatelessWidget {
     final idx = _indexFromLocation(loc);
 
     return Scaffold(
-      body: SafeArea(child: child),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: idx,
-        onDestinationSelected: (i) {
-          switch (i) {
-            case 0:
-              context.go('/');
-              break;
-            case 1:
-              context.go('/explore');
-              break;
-            case 2:
-              context.go('/create');
-              break;
-            case 3:
-              context.go('/profile');
-              break;
-          }
-        },
-        destinations: const [
-          // icons only (labels hidden by theme)
-          NavigationDestination(
-            icon: Icon(Icons.home_outlined),
-            selectedIcon: Icon(Icons.home),
-            label: 'Home',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.explore_outlined),
-            selectedIcon: Icon(Icons.explore),
-            label: 'Explore',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.add_box_outlined),
-            selectedIcon: Icon(Icons.add_box),
-            label: 'Create',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.person_outline),
-            selectedIcon: Icon(Icons.person),
-            label: 'Profile',
-          ),
-        ],
+      body: child,
+      bottomNavigationBar: Container(
+        decoration: BoxDecoration(
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              blurRadius: 10,
+              offset: const Offset(0, -2),
+            ),
+          ],
+        ),
+        child: NavigationBar(
+          selectedIndex: idx,
+          backgroundColor: Colors.white,
+          elevation: 0,
+          height: 70,
+          labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+          indicatorColor: Colors.purple.shade50,
+          onDestinationSelected: (i) {
+            switch (i) {
+              case 0:
+                context.go('/');
+                break;
+              case 1:
+                context.go('/explore');
+                break;
+              case 2:
+                context.go('/create');
+                break;
+              case 3:
+                context.go('/profile');
+                break;
+            }
+          },
+          destinations: [
+            NavigationDestination(
+              icon: Icon(Icons.home_outlined, color: Colors.grey[600]),
+              selectedIcon: ShaderMask(
+                shaderCallback: (bounds) => LinearGradient(
+                  colors: [Colors.purple.shade400, Colors.pink.shade400],
+                ).createShader(bounds),
+                child: const Icon(Icons.home, color: Colors.white),
+              ),
+              label: 'Home',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.explore_outlined, color: Colors.grey[600]),
+              selectedIcon: ShaderMask(
+                shaderCallback: (bounds) => LinearGradient(
+                  colors: [Colors.purple.shade400, Colors.pink.shade400],
+                ).createShader(bounds),
+                child: const Icon(Icons.explore, color: Colors.white),
+              ),
+              label: 'Explore',
+            ),
+            NavigationDestination(
+              icon: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Colors.purple.shade400, Colors.pink.shade400],
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.purple.withOpacity(0.3),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: const Icon(Icons.add, color: Colors.white, size: 20),
+              ),
+              selectedIcon: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Colors.purple.shade400, Colors.pink.shade400],
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.purple.withOpacity(0.5),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: const Icon(Icons.add, color: Colors.white, size: 20),
+              ),
+              label: 'Create',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.person_outline, color: Colors.grey[600]),
+              selectedIcon: ShaderMask(
+                shaderCallback: (bounds) => LinearGradient(
+                  colors: [Colors.purple.shade400, Colors.pink.shade400],
+                ).createShader(bounds),
+                child: const Icon(Icons.person, color: Colors.white),
+              ),
+              label: 'Profile',
+            ),
+          ],
+        ),
       ),
     );
   }
 }
+

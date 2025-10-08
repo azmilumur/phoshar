@@ -1,11 +1,8 @@
-// lib/features/auth/presentation/login_page.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lottie/lottie.dart';
 import 'package:go_router/go_router.dart';
-
-import '../../auth/controllers/sign_in_controller.dart';
-import '../../../core/widgets/app_text_field.dart';
-import '../../../core/widgets/app_button.dart';
+import '../controllers/sign_in_controller.dart';
 
 class LoginPage extends ConsumerStatefulWidget {
   const LoginPage({super.key});
@@ -17,6 +14,7 @@ class LoginPage extends ConsumerStatefulWidget {
 class _LoginPageState extends ConsumerState<LoginPage> {
   final emailCtrl = TextEditingController();
   final passCtrl = TextEditingController();
+  bool _obscurePassword = true;
 
   @override
   void dispose() {
@@ -25,84 +23,252 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     super.dispose();
   }
 
-  Future<void> _submit() async {
-    final email = emailCtrl.text.trim();
-    final pass = passCtrl.text;
-    if (email.isEmpty || pass.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Email & password wajib diisi')),
-      );
-      return;
-    }
-    await ref.read(signInControllerProvider.notifier).signIn(email, pass);
-    // Router akan auto-redirect karena SessionController di-update saat login sukses.
+  void _showSuccessAnimation() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) {
+        Future.delayed(const Duration(seconds: 2), () {
+          if (ctx.mounted) {
+            Navigator.of(ctx).pop();
+            context.go('/'); // ⬅️ langsung ke feed setelah animasi
+          }
+        });
+        return Center(
+          child: Lottie.asset(
+            'assets/animations/success.json',
+            width: 180,
+            height: 180,
+            repeat: false,
+          ),
+        );
+      },
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final signInState = ref.watch(signInControllerProvider);
+    final loginState = ref.watch(signInControllerProvider);
 
-    // tampilkan error dari proses login (401 dsb.)
     ref.listen(signInControllerProvider, (prev, next) {
+      final wasLoading = prev?.isLoading == true;
+      final nowLoaded = next.hasValue && !next.isLoading;
+
+      if (wasLoading && nowLoaded && mounted) {
+        _showSuccessAnimation();
+      }
+
       next.whenOrNull(
-        error:
-            (e, _) => ScaffoldMessenger.of(
-              context,
-            ).showSnackBar(SnackBar(content: Text(e.toString()))),
+        error: (e, _) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('⚠️ ${e.toString()}'),
+                backgroundColor: Colors.redAccent,
+                behavior: SnackBarBehavior.floating,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            );
+          }
+        },
       );
     });
 
     return Scaffold(
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 420),
+      backgroundColor: Colors.grey[50],
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24.0),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Text(
-                  'PhotoShare',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
+                Container(
+                  width: 100,
+                  height: 100,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [Colors.purple.shade400, Colors.pink.shade400],
+                    ),
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.purple.withOpacity(0.3),
+                        blurRadius: 20,
+                        offset: const Offset(0, 10),
+                      ),
+                    ],
+                  ),
+                  child: const Icon(
+                    Icons.camera_alt_rounded,
+                    size: 50,
+                    color: Colors.white,
+                  ),
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 32),
                 const Text(
-                  'Login',
-                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.w600),
+                  'Selamat Datang!',
+                  style: TextStyle(
+                    fontSize: 28,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 0.5,
+                  ),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 8),
+                Text(
+                  'Masuk untuk melanjutkan',
+                  style: TextStyle(fontSize: 16, color: Colors.grey[600]),
+                ),
+                const SizedBox(height: 40),
 
-                AppTextField(
+                _inputField(
                   controller: emailCtrl,
                   label: 'Email',
-                  keyboardType: TextInputType.emailAddress,
-                  textInputAction: TextInputAction.next,
-                ),
-                const SizedBox(height: 12),
-                AppTextField(
-                  controller: passCtrl,
-                  label: 'Password',
-                  obscureText: true,
-                  textInputAction: TextInputAction.done,
-                  onSubmitted: (_) => _submit(),
+                  icon: Icons.email_outlined,
                 ),
                 const SizedBox(height: 16),
-
-                AppButton(
-                  label: 'Masuk',
-                  isLoading: signInState.isLoading,
-                  onPressed: signInState.isLoading ? null : _submit,
+                _inputField(
+                  controller: passCtrl,
+                  label: 'Password',
+                  icon: Icons.lock_outline,
+                  obscure: _obscurePassword,
+                  suffix: IconButton(
+                    icon: Icon(
+                      _obscurePassword
+                          ? Icons.visibility_off_outlined
+                          : Icons.visibility_outlined,
+                      color: Colors.grey[600],
+                    ),
+                    onPressed:
+                        () => setState(
+                          () => _obscurePassword = !_obscurePassword,
+                        ),
+                  ),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 24),
 
-                TextButton(
-                  onPressed: () => context.go('/register'),
-                  child: const Text('Belum punya akun? Daftar'),
+                SizedBox(
+                  width: double.infinity,
+                  height: 56,
+                  child: ElevatedButton(
+                    onPressed:
+                        loginState.isLoading
+                            ? null
+                            : () async {
+                              await ref
+                                  .read(signInControllerProvider.notifier)
+                                  .signIn(emailCtrl.text.trim(), passCtrl.text);
+                            },
+                    style: ElevatedButton.styleFrom(
+                      padding: EdgeInsets.zero,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    ).copyWith(
+                      backgroundColor: WidgetStateProperty.all(
+                        Colors.transparent,
+                      ),
+                      shadowColor: WidgetStateProperty.all(Colors.transparent),
+                    ),
+                    child: Ink(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            Colors.purple.shade400,
+                            Colors.pink.shade400,
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.purple.withOpacity(0.3),
+                            blurRadius: 12,
+                            offset: const Offset(0, 6),
+                          ),
+                        ],
+                      ),
+                      child: Center(
+                        child:
+                            loginState.isLoading
+                                ? const CircularProgressIndicator(
+                                  color: Colors.white,
+                                  strokeWidth: 2.5,
+                                )
+                                : const Text(
+                                  'Masuk',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 24),
+
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      'Belum punya akun? ',
+                      style: TextStyle(color: Colors.grey[600]),
+                    ),
+                    TextButton(
+                      onPressed: () => context.go('/register'),
+                      child: const Text(
+                        'Daftar',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          decoration: TextDecoration.underline,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _inputField({
+    required TextEditingController controller,
+    required String label,
+    required IconData icon,
+    bool obscure = false,
+    Widget? suffix,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: TextField(
+        controller: controller,
+        obscureText: obscure,
+        decoration: InputDecoration(
+          labelText: label,
+          prefixIcon: Icon(icon, color: Colors.grey[600]),
+          suffixIcon: suffix,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: BorderSide.none,
+          ),
+          filled: true,
+          fillColor: Colors.white,
         ),
       ),
     );

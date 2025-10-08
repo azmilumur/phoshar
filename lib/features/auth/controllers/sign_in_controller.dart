@@ -1,14 +1,11 @@
-// lib/features/auth/controllers/sign_in_controller.dart
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:dio/dio.dart';
-
 import '../data/auth_repository.dart';
 import 'session_controller.dart';
 
 final signInControllerProvider =
     AsyncNotifierProvider.autoDispose<SignInController, void>(
-      SignInController.new,
-    );
+  SignInController.new,
+);
 
 class SignInController extends AsyncNotifier<void> {
   late final AuthRepository _repo;
@@ -23,20 +20,12 @@ class SignInController extends AsyncNotifier<void> {
     try {
       final user = await _repo.signIn(email: email, password: password);
 
-      // Update session -> router auto-redirect
+      // 🔄 update ke session controller (biar router login → feed)
       ref.read(sessionControllerProvider.notifier).setUser(user);
 
       state = const AsyncData(null);
-    } on DioException catch (e, st) {
-      state = AsyncError(Exception(_formatDio(e)), st);
     } catch (e, st) {
       state = AsyncError(Exception(e.toString()), st);
     }
-  }
-
-  String _formatDio(DioException e) {
-    final d = e.response?.data;
-    if (d is Map && d['message'] is String) return d['message'] as String;
-    return e.message ?? 'Login gagal';
   }
 }

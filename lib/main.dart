@@ -21,12 +21,6 @@ class MyApp extends ConsumerWidget {
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.indigo),
         useMaterial3: true,
-        navigationBarTheme: const NavigationBarThemeData(
-          labelBehavior:
-              NavigationDestinationLabelBehavior.alwaysHide, // ⬅️ hide labels
-          height: 64,
-          indicatorShape: StadiumBorder(),
-        ),
       ),
       routerConfig: router,
     );

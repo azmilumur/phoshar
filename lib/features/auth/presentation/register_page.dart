@@ -1,11 +1,12 @@
-// lib/features/auth/presentation/register_page.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lottie/lottie.dart';
 import 'package:go_router/go_router.dart';
-import '../controllers/registers_controller.dart';
+import '../controllers/register_controller.dart';
 
 class RegisterPage extends ConsumerStatefulWidget {
   const RegisterPage({super.key});
+
   @override
   ConsumerState<RegisterPage> createState() => _RegisterPageState();
 }
@@ -15,12 +16,9 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
   final usernameCtrl = TextEditingController();
   final emailCtrl = TextEditingController();
   final passCtrl = TextEditingController();
-  final pass2Ctrl = TextEditingController();
-  final picCtrl = TextEditingController();
-  final phoneCtrl = TextEditingController();
-  final bioCtrl = TextEditingController();
-  final webCtrl = TextEditingController();
-  bool vis1 = false, vis2 = false;
+  final repeatCtrl = TextEditingController();
+  bool _obscurePassword = true;
+  bool _obscureRepeat = true;
 
   @override
   void dispose() {
@@ -28,136 +26,152 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
     usernameCtrl.dispose();
     emailCtrl.dispose();
     passCtrl.dispose();
-    pass2Ctrl.dispose();
-    picCtrl.dispose();
-    phoneCtrl.dispose();
-    bioCtrl.dispose();
-    webCtrl.dispose();
+    repeatCtrl.dispose();
     super.dispose();
+  }
+
+  void _showSuccessAnimation() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) {
+        Future.delayed(const Duration(seconds: 2), () {
+          if (ctx.mounted) {
+            Navigator.of(ctx).pop();
+            context.go('/login'); // ⬅️ balik ke login
+          }
+        });
+        return Center(
+          child: Lottie.asset(
+            'assets/animations/success.json',
+            width: 180,
+            height: 180,
+            repeat: false,
+          ),
+        );
+      },
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final reg = ref.watch(registerControllerProvider);
+    final regState = ref.watch(registerControllerProvider);
 
     ref.listen(registerControllerProvider, (prev, next) {
+      final wasLoading = prev?.isLoading == true;
+      final nowLoaded = next.hasValue && !next.isLoading;
+
+      // hanya tampilkan animasi kalau benar-benar barusan register
+      if (wasLoading && nowLoaded && mounted) {
+        _showSuccessAnimation();
+      }
+
       next.whenOrNull(
-        error: (e, _) => ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(e.toString()))),
-        data: (_) {
-          // sukses → server tidak kirim token → arahkan manual ke login
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Akun dibuat. Silakan login.')),
-          );
-          context.go('/login');
+        error: (e, _) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('⚠️ ${e.toString()}'),
+                backgroundColor: Colors.redAccent,
+                behavior: SnackBarBehavior.floating,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            );
+          }
         },
       );
     });
 
-    InputDecoration deco(String label) =>
-        InputDecoration(labelText: label, border: const OutlineInputBorder());
-
     return Scaffold(
-      appBar: AppBar(title: const Text('Register')),
-      body: Center(
+      backgroundColor: Colors.grey[50],
+      appBar: AppBar(
+        elevation: 0,
+        backgroundColor: Colors.transparent,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios, color: Colors.black87),
+          onPressed: () => context.go('/login'),
+        ),
+      ),
+      body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 480),
-            child: Column(
-              children: [
-                TextField(controller: nameCtrl, decoration: deco('Name')),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: usernameCtrl,
-                  decoration: deco('Username'),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Buat Akun',
+                style: TextStyle(
+                  fontSize: 32,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 0.5,
                 ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: emailCtrl,
-                  decoration: deco('Email'),
-                  keyboardType: TextInputType.emailAddress,
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: passCtrl,
-                  obscureText: !vis1,
-                  decoration: deco('Password').copyWith(
-                    suffixIcon: IconButton(
-                      onPressed: () => setState(() => vis1 = !vis1),
-                      icon: Icon(
-                        vis1 ? Icons.visibility_off : Icons.visibility,
-                      ),
-                    ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Bergabunglah dengan komunitas kami',
+                style: TextStyle(fontSize: 16, color: Colors.grey[600]),
+              ),
+              const SizedBox(height: 32),
+
+              _input('Nama', Icons.person_outline, nameCtrl),
+              const SizedBox(height: 16),
+              _input('Username', Icons.alternate_email, usernameCtrl),
+              const SizedBox(height: 16),
+              _input(
+                'Email',
+                Icons.email_outlined,
+                emailCtrl,
+                type: TextInputType.emailAddress,
+              ),
+              const SizedBox(height: 16),
+
+              _input(
+                'Password',
+                Icons.lock_outline,
+                passCtrl,
+                obscure: _obscurePassword,
+                suffix: IconButton(
+                  icon: Icon(
+                    _obscurePassword
+                        ? Icons.visibility_off_outlined
+                        : Icons.visibility_outlined,
+                    color: Colors.grey[600],
                   ),
+                  onPressed:
+                      () =>
+                          setState(() => _obscurePassword = !_obscurePassword),
                 ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: pass2Ctrl,
-                  obscureText: !vis2,
-                  decoration: deco('Password Repeat').copyWith(
-                    suffixIcon: IconButton(
-                      onPressed: () => setState(() => vis2 = !vis2),
-                      icon: Icon(
-                        vis2 ? Icons.visibility_off : Icons.visibility,
-                      ),
-                    ),
+              ),
+              const SizedBox(height: 16),
+
+              _input(
+                'Ulangi Password',
+                Icons.lock_outline,
+                repeatCtrl,
+                obscure: _obscureRepeat,
+                suffix: IconButton(
+                  icon: Icon(
+                    _obscureRepeat
+                        ? Icons.visibility_off_outlined
+                        : Icons.visibility_outlined,
+                    color: Colors.grey[600],
                   ),
+                  onPressed:
+                      () => setState(() => _obscureRepeat = !_obscureRepeat),
                 ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: picCtrl,
-                  decoration: deco('Profile Picture URL (opsional)'),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: phoneCtrl,
-                  decoration: deco('Phone (opsional)'),
-                  keyboardType: TextInputType.phone,
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: bioCtrl,
-                  decoration: deco('Bio (opsional)'),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: webCtrl,
-                  decoration: deco('Website (opsional)'),
-                ),
-                const SizedBox(height: 16),
-                SizedBox(
-                  width: double.infinity,
-                  height: 48,
-                  child: FilledButton(
-                    onPressed: reg.isLoading
-                        ? null
-                        : () async {
-                            if (nameCtrl.text.trim().isEmpty ||
-                                usernameCtrl.text.trim().isEmpty ||
-                                emailCtrl.text.trim().isEmpty ||
-                                passCtrl.text.isEmpty ||
-                                pass2Ctrl.text.isEmpty) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text(
-                                    'Semua field wajib kecuali yang bertanda opsional',
-                                  ),
-                                ),
-                              );
-                              return;
-                            }
-                            if (passCtrl.text != pass2Ctrl.text) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text(
-                                    'Konfirmasi password tidak sama',
-                                  ),
-                                ),
-                              );
-                              return;
-                            }
+              ),
+              const SizedBox(height: 32),
+
+              SizedBox(
+                width: double.infinity,
+                height: 56,
+                child: ElevatedButton(
+                  onPressed:
+                      regState.isLoading
+                          ? null
+                          : () async {
                             await ref
                                 .read(registerControllerProvider.notifier)
                                 .register(
@@ -165,34 +179,90 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                                   username: usernameCtrl.text.trim(),
                                   email: emailCtrl.text.trim(),
                                   password: passCtrl.text,
-                                  passwordRepeat: pass2Ctrl.text,
-                                  profilePictureUrl: picCtrl.text.trim().isEmpty
-                                      ? null
-                                      : picCtrl.text.trim(),
-                                  phoneNumber: phoneCtrl.text.trim().isEmpty
-                                      ? null
-                                      : phoneCtrl.text.trim(),
-                                  bio: bioCtrl.text.trim().isEmpty
-                                      ? null
-                                      : bioCtrl.text.trim(),
-                                  website: webCtrl.text.trim().isEmpty
-                                      ? null
-                                      : webCtrl.text.trim(),
+                                  passwordRepeat: repeatCtrl.text,
                                 );
                           },
-                    child: reg.isLoading
-                        ? const CircularProgressIndicator()
-                        : const Text('Daftar'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.transparent,
+                    shadowColor: Colors.transparent,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                  child: Ink(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [Colors.purple.shade400, Colors.pink.shade400],
+                      ),
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.purple.withOpacity(0.3),
+                          blurRadius: 12,
+                          offset: const Offset(0, 6),
+                        ),
+                      ],
+                    ),
+                    child: Center(
+                      child:
+                          regState.isLoading
+                              ? const CircularProgressIndicator(
+                                color: Colors.white,
+                                strokeWidth: 2.5,
+                              )
+                              : const Text(
+                                'Daftar',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                    ),
                   ),
                 ),
-                const SizedBox(height: 8),
-                TextButton(
-                  onPressed: () => context.go('/login'),
-                  child: const Text('Sudah punya akun? Login'),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _input(
+    String label,
+    IconData icon,
+    TextEditingController ctrl, {
+    bool obscure = false,
+    Widget? suffix,
+    TextInputType? type,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: TextField(
+        controller: ctrl,
+        obscureText: obscure,
+        keyboardType: type,
+        decoration: InputDecoration(
+          labelText: label,
+          prefixIcon: Icon(icon, color: Colors.grey[600]),
+          suffixIcon: suffix,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: BorderSide.none,
+          ),
+          filled: true,
+          fillColor: Colors.white,
         ),
       ),
     );

@@ -3,8 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:go_router/go_router.dart';
-// optional kalau mau redirect ke profile
 import '../controllers/create_post_controller.dart';
+import 'package:lottie/lottie.dart';
 
 class CreatePostPage extends ConsumerStatefulWidget {
   const CreatePostPage({super.key});
@@ -16,7 +16,7 @@ class CreatePostPage extends ConsumerStatefulWidget {
 class _CreatePostPageState extends ConsumerState<CreatePostPage> {
   final _captionCtrl = TextEditingController();
   XFile? _picked;
-  Uint8List? _previewBytes; // aman untuk web & mobile
+  Uint8List? _previewBytes;
   bool _picking = false;
 
   @override
@@ -43,9 +43,13 @@ class _CreatePostPageState extends ConsumerState<CreatePostPage> {
       }
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Gagal memilih gambar: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Gagal memilih gambar: $e'),
+          backgroundColor: Colors.redAccent,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
     } finally {
       if (mounted) setState(() => _picking = false);
     }
@@ -55,15 +59,21 @@ class _CreatePostPageState extends ConsumerState<CreatePostPage> {
     final img = _picked;
     final caption = _captionCtrl.text.trim();
     if (img == null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Pilih gambar dulu.')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Pilih gambar dulu.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
       return;
     }
     if (caption.isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Caption wajib diisi.')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Caption wajib diisi.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
       return;
     }
 
@@ -76,90 +86,312 @@ class _CreatePostPageState extends ConsumerState<CreatePostPage> {
   Widget build(BuildContext context) {
     final createState = ref.watch(createPostControllerProvider);
 
-    // listen sukses/error
     ref.listen(createPostControllerProvider, (prev, next) {
       next.whenOrNull(
         data: (_) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(const SnackBar(content: Text('Post berhasil dibuat')));
-          // setelah sukses, balik ke feed atau ke profile sendiri
-          context.go('/'); // atau: context.go('/profile');
+          showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (ctx) {
+              Future.delayed(const Duration(seconds: 2), () {
+                if (ctx.mounted) {
+                  Navigator.of(ctx).pop();
+                  context.go('/');
+                }
+              });
+              return Center(
+                child: Lottie.asset(
+                  'assets/animations/success.json',
+                  width: 180,
+                  height: 180,
+                  repeat: false,
+                ),
+              );
+            },
+          );
         },
         error: (e, _) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text('Gagal: $e')));
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Gagal: $e'),
+              backgroundColor: Colors.redAccent,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
         },
       );
     });
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Create Post')),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          // PREVIEW
-          AspectRatio(
-            aspectRatio: 1,
-            child: DecoratedBox(
+      backgroundColor: Colors.grey[50],
+      appBar: AppBar(
+        elevation: 0,
+        backgroundColor: Colors.white,
+        title: const Text(
+          'Buat Post Baru',
+          style: TextStyle(
+            color: Colors.black87,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        leading: IconButton(
+          icon: const Icon(Icons.close, color: Colors.black87),
+          onPressed: () => Navigator.pop(context),
+        ),
+      ),
+      body: SingleChildScrollView(
+        child: Column(
+          children: [
+            const SizedBox(height: 16),
+            
+            // Preview Container
+            Container(
+              margin: const EdgeInsets.symmetric(horizontal: 16),
               decoration: BoxDecoration(
-                border: Border.all(color: Theme.of(context).dividerColor),
-                borderRadius: BorderRadius.circular(8),
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.08),
+                    blurRadius: 15,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
               ),
-              child: _previewBytes == null
-                  ? const Center(child: Icon(Icons.image_outlined, size: 48))
-                  : ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: Image.memory(
-                        _previewBytes!,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => const Center(
-                          child: Icon(Icons.broken_image_outlined),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(20),
+                child: AspectRatio(
+                  aspectRatio: 1,
+                  child: _previewBytes == null
+                      ? Container(
+                          color: Colors.grey[100],
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(24),
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    colors: [
+                                      Colors.purple.shade100,
+                                      Colors.pink.shade100,
+                                    ],
+                                  ),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Icon(
+                                  Icons.add_photo_alternate_outlined,
+                                  size: 60,
+                                  color: Colors.purple.shade400,
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              Text(
+                                'Pilih gambar untuk dipost',
+                                style: TextStyle(
+                                  color: Colors.grey[600],
+                                  fontSize: 16,
+                                ),
+                              ),
+                            ],
+                          ),
+                        )
+                      : Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            Image.memory(
+                              _previewBytes!,
+                              fit: BoxFit.cover,
+                            ),
+                            Positioned(
+                              top: 12,
+                              right: 12,
+                              child: Material(
+                                color: Colors.black54,
+                                shape: const CircleBorder(),
+                                child: InkWell(
+                                  onTap: () {
+                                    setState(() {
+                                      _picked = null;
+                                      _previewBytes = null;
+                                    });
+                                  },
+                                  customBorder: const CircleBorder(),
+                                  child: const Padding(
+                                    padding: EdgeInsets.all(8),
+                                    child: Icon(
+                                      Icons.close,
+                                      color: Colors.white,
+                                      size: 20,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 24),
+
+            // Pick Image Button
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      Colors.blue.shade400,
+                      Colors.blue.shade600,
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.blue.withOpacity(0.3),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: createState.isLoading ? null : _pickImage,
+                    borderRadius: BorderRadius.circular(16),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          if (_picking)
+                            const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                color: Colors.white,
+                                strokeWidth: 2,
+                              ),
+                            )
+                          else
+                            const Icon(
+                              Icons.photo_library_outlined,
+                              color: Colors.white,
+                            ),
+                          const SizedBox(width: 12),
+                          Text(
+                            _picked == null ? 'Pilih Gambar' : 'Ganti Gambar',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-            ),
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              FilledButton.icon(
-                onPressed: createState.isLoading ? null : _pickImage,
-                icon: _picking
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.photo),
-                label: const Text('Pilih Gambar'),
+                  ),
+                ),
               ),
-              const SizedBox(width: 12),
-              if (_picked != null)
-                Text(_picked!.name, overflow: TextOverflow.ellipsis),
-            ],
-          ),
-          const SizedBox(height: 16),
-          TextField(
-            controller: _captionCtrl,
-            maxLength: 200,
-            decoration: const InputDecoration(
-              labelText: 'Caption',
-              border: OutlineInputBorder(),
             ),
-          ),
-          const SizedBox(height: 12),
-          SizedBox(
-            height: 48,
-            child: FilledButton(
-              onPressed: createState.isLoading ? null : _submit,
-              child: createState.isLoading
-                  ? const CircularProgressIndicator()
-                  : const Text('Upload & Post'),
+
+            const SizedBox(height: 24),
+
+            // Caption Field
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.05),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: TextField(
+                  controller: _captionCtrl,
+                  maxLength: 200,
+                  maxLines: 4,
+                  decoration: InputDecoration(
+                    labelText: 'Tulis caption...',
+                    alignLabelWithHint: true,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(16),
+                      borderSide: BorderSide.none,
+                    ),
+                    filled: true,
+                    fillColor: Colors.white,
+                    contentPadding: const EdgeInsets.all(16),
+                  ),
+                ),
+              ),
             ),
-          ),
-        ],
+
+            const SizedBox(height: 24),
+
+            // Submit Button
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: SizedBox(
+                width: double.infinity,
+                height: 56,
+                child: Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        Colors.purple.shade400,
+                        Colors.pink.shade400,
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.purple.withOpacity(0.3),
+                        blurRadius: 12,
+                        offset: const Offset(0, 6),
+                      ),
+                    ],
+                  ),
+                  child: ElevatedButton(
+                    onPressed: createState.isLoading ? null : _submit,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.transparent,
+                      shadowColor: Colors.transparent,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    ),
+                    child: createState.isLoading
+                        ? const SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 2.5,
+                            ),
+                          )
+                        : const Text(
+                            'Post Sekarang',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                  ),
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 32),
+          ],
+        ),
       ),
     );
   }
