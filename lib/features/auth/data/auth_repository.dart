@@ -28,11 +28,11 @@ class AuthRepository {
     final data = res.data as Map<String, dynamic>;
     final token = (data['token'] ?? data['accessToken'] ?? '').toString();
 
-    if (token.isEmpty) throw Exception('Login gagal: token kosong');
+    if (token.isEmpty) throw Exception('Login gagal: Username Password Salah');
     await _tokens.saveAccessToken(token);
 
-    final userMap = (data['user'] ?? data['data']?['user'] ?? data)
-        as Map<String, dynamic>;
+    final userMap =
+        (data['user'] ?? data['data']?['user'] ?? data) as Map<String, dynamic>;
     await _tokens.saveUserMap(userMap);
     return AuthUser.fromMap(userMap);
   }

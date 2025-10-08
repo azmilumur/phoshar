@@ -189,4 +189,29 @@ class PostsRepository {
       throw Exception(data['message'] ?? 'Gagal menghapus komentar');
     }
   }
+
+  //// POST /api/v1/update-post/{postId}
+  Future<void> updatePost({
+    required String postId,
+    required String imageUrl,
+    required String caption,
+  }) async {
+    final res = await _dio.post(
+      'update-post/$postId',
+      data: {'imageUrl': imageUrl, 'caption': caption},
+    );
+    final data = res.data as Map<String, dynamic>;
+    if (data['code']?.toString() != '200') {
+      throw Exception(data['message'] ?? 'Gagal update post');
+    }
+  }
+
+  /// DELETE /api/v1/delete-post/{postId}
+  Future<void> deletePost(String postId) async {
+    final res = await _dio.delete('delete-post/$postId');
+    final data = res.data as Map<String, dynamic>;
+    if (data['code']?.toString() != '200') {
+      throw Exception(data['message'] ?? 'Gagal menghapus post');
+    }
+  }
 }

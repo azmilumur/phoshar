@@ -4,8 +4,8 @@ import 'session_controller.dart';
 
 final signInControllerProvider =
     AsyncNotifierProvider.autoDispose<SignInController, void>(
-  SignInController.new,
-);
+      SignInController.new,
+    );
 
 class SignInController extends AsyncNotifier<void> {
   late final AuthRepository _repo;

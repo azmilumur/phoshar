@@ -141,10 +141,8 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                           : Icons.visibility_outlined,
                       color: Colors.grey[600],
                     ),
-                    onPressed:
-                        () => setState(
-                          () => _obscurePassword = !_obscurePassword,
-                        ),
+                    onPressed: () =>
+                        setState(() => _obscurePassword = !_obscurePassword),
                   ),
                 ),
                 const SizedBox(height: 24),
@@ -153,25 +151,27 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                   width: double.infinity,
                   height: 56,
                   child: ElevatedButton(
-                    onPressed:
-                        loginState.isLoading
-                            ? null
-                            : () async {
-                              await ref
-                                  .read(signInControllerProvider.notifier)
-                                  .signIn(emailCtrl.text.trim(), passCtrl.text);
-                            },
-                    style: ElevatedButton.styleFrom(
-                      padding: EdgeInsets.zero,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                    ).copyWith(
-                      backgroundColor: WidgetStateProperty.all(
-                        Colors.transparent,
-                      ),
-                      shadowColor: WidgetStateProperty.all(Colors.transparent),
-                    ),
+                    onPressed: loginState.isLoading
+                        ? null
+                        : () async {
+                            await ref
+                                .read(signInControllerProvider.notifier)
+                                .signIn(emailCtrl.text.trim(), passCtrl.text);
+                          },
+                    style:
+                        ElevatedButton.styleFrom(
+                          padding: EdgeInsets.zero,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ).copyWith(
+                          backgroundColor: WidgetStateProperty.all(
+                            Colors.transparent,
+                          ),
+                          shadowColor: WidgetStateProperty.all(
+                            Colors.transparent,
+                          ),
+                        ),
                     child: Ink(
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
@@ -187,20 +187,19 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                         ],
                       ),
                       child: Center(
-                        child:
-                            loginState.isLoading
-                                ? const CircularProgressIndicator(
+                        child: loginState.isLoading
+                            ? const CircularProgressIndicator(
+                                color: Colors.white,
+                                strokeWidth: 2.5,
+                              )
+                            : const Text(
+                                'Masuk',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
                                   color: Colors.white,
-                                  strokeWidth: 2.5,
-                                )
-                                : const Text(
-                                  'Masuk',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.white,
-                                  ),
                                 ),
+                              ),
                       ),
                     ),
                   ),

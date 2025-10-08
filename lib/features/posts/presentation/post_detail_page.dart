@@ -4,8 +4,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lottie/lottie.dart';
 
-import '../../auth/controllers/session_controller.dart'; // sessionControllerProvider
-import '../../posts/controllers/post_detail_controller.dart'; // postDetailControllerProvider
+import '../../auth/controllers/session_controller.dart';
+import '../../posts/controllers/post_detail_controller.dart';
+import '../../posts/data/post_repository.dart';
+import '../../posts/presentation/update_post_page.dart';
 
 class PostDetailPage extends ConsumerStatefulWidget {
   final String postId;
@@ -21,6 +23,21 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
   static const _animDur = Duration(seconds: 2);
   static const _animSize = 180.0;
 
+  @override
+  void initState() {
+    super.initState();
+    Future.microtask(() {
+      ref.read(postDetailControllerProvider.notifier).loadPost(widget.postId);
+    });
+  }
+
+  @override
+  void dispose() {
+    _commentCtrl.dispose();
+    super.dispose();
+  }
+
+  // ---------------- helpers ----------------
   void _showLottie(String file) {
     showDialog(
       context: context,
@@ -73,20 +90,100 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
     }
   }
 
-  @override
-  void initState() {
-    super.initState();
-    Future.microtask(() {
-      ref.read(postDetailControllerProvider.notifier).loadPost(widget.postId);
-    });
+  void _showPostActions(BuildContext context, dynamic post) async {
+    final me = ref.read(sessionControllerProvider).asData?.value;
+    final ownerId = post.user?.id ?? post.userId;
+    final isOwner = me?.id != null && me!.id == ownerId;
+
+    showModalBottomSheet(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (isOwner)
+              ListTile(
+                leading: const Icon(Icons.edit_outlined),
+                title: const Text('Edit post'),
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  final updated = await Navigator.of(context).push<bool>(
+                    MaterialPageRoute(
+                      builder: (_) => UpdatePostPage(
+                        postId: post.id,
+                        initialImageUrl: post.imageUrl,
+                        initialCaption: post.caption ?? '',
+                      ),
+                    ),
+                  );
+                  if (updated == true && mounted) {
+                    await ref
+                        .read(postDetailControllerProvider.notifier)
+                        .loadPost(widget.postId);
+                  }
+                },
+              ),
+            if (isOwner)
+              ListTile(
+                leading: const Icon(Icons.delete_outline, color: Colors.red),
+                title: const Text('Delete post'),
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  final ok = await showDialog<bool>(
+                    context: context,
+                    builder: (d) => AlertDialog(
+                      title: const Text('Hapus post?'),
+                      content: const Text(
+                        'Tindakan ini tidak bisa dibatalkan.',
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(d, false),
+                          child: const Text('Batal'),
+                        ),
+                        TextButton(
+                          onPressed: () => Navigator.pop(d, true),
+                          style: TextButton.styleFrom(
+                            foregroundColor: Colors.red,
+                          ),
+                          child: const Text('Hapus'),
+                        ),
+                      ],
+                    ),
+                  );
+                  if (ok != true) return;
+                  try {
+                    await ref.read(postsRepositoryProvider).deletePost(post.id);
+                    if (!mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Post dihapus')),
+                    );
+                    // ignore: use_build_context_synchronously
+                    context.go('/profile'); // close detail page
+                  } catch (e) {
+                    if (!mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Gagal menghapus: $e')),
+                    );
+                  }
+                },
+              ),
+            if (!isOwner)
+              const Padding(
+                padding: EdgeInsets.all(16),
+                child: Text(
+                  'Ini bukan postinganmu.',
+                  style: TextStyle(color: Colors.grey),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
   }
 
-  @override
-  void dispose() {
-    _commentCtrl.dispose();
-    super.dispose();
-  }
-
+  // ---------------- UI ----------------
   @override
   Widget build(BuildContext context) {
     final postAsync = ref.watch(postDetailControllerProvider);
@@ -144,106 +241,108 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            // HEADER USER (tappable ke profile)
+                            // HEADER USER (tap ke profile) + menu
                             Padding(
                               padding: const EdgeInsets.all(16),
-                              child: InkWell(
-                                onTap: () {
-                                  final u = post.user;
-                                  if (u == null) return;
-
-                                  final myId = me?.id;
-                                  if (myId != null && myId == u.id) {
-                                    // profil sendiri
-                                    context.push('/profile');
-                                  } else {
-                                    // profil orang lain + SEED header via `extra`
-                                    context.push(
-                                      '/profile/${u.id}',
-                                      extra: {
-                                        'username': u
-                                            .username, // tampilkan sebagai title
-                                        'name': u
-                                            .username, // kalau tidak punya name, pakai username
-                                        'avatarUrl':
-                                            u.profilePictureUrl, // url avatar
-                                        'email': u.email, // fallback subtitle
-                                        // 'isFollowing': true/false,        // opsional kalau kamu tahu statusnya
-                                      },
-                                    );
-                                  }
-                                },
-                                child: Row(
-                                  children: [
-                                    Container(
-                                      decoration: BoxDecoration(
-                                        shape: BoxShape.circle,
-                                        gradient: LinearGradient(
-                                          colors: [
-                                            Colors.purple.shade300,
-                                            Colors.pink.shade300,
+                              child: Row(
+                                children: [
+                                  InkWell(
+                                    onTap: () {
+                                      final u = post.user;
+                                      if (u == null) return;
+                                      final myId = me?.id;
+                                      final route =
+                                          (myId != null && myId == u.id)
+                                          ? '/profile'
+                                          : '/profile/${u.id}';
+                                      context.push(
+                                        route,
+                                        extra: myId == u.id
+                                            ? null
+                                            : {
+                                                'username': u.username,
+                                                'name': u.username,
+                                                'avatarUrl':
+                                                    u.profilePictureUrl,
+                                                'email': u.email,
+                                              },
+                                      );
+                                    },
+                                    child: Row(
+                                      children: [
+                                        Container(
+                                          decoration: BoxDecoration(
+                                            shape: BoxShape.circle,
+                                            gradient: LinearGradient(
+                                              colors: [
+                                                Colors.purple.shade300,
+                                                Colors.pink.shade300,
+                                              ],
+                                            ),
+                                          ),
+                                          padding: const EdgeInsets.all(2),
+                                          child: CircleAvatar(
+                                            radius: 26,
+                                            backgroundColor: Colors.white,
+                                            child: CircleAvatar(
+                                              radius: 24,
+                                              backgroundImage:
+                                                  (post
+                                                          .user
+                                                          ?.profilePictureUrl
+                                                          ?.isNotEmpty ??
+                                                      false)
+                                                  ? NetworkImage(
+                                                      post
+                                                          .user!
+                                                          .profilePictureUrl!,
+                                                    )
+                                                  : null,
+                                              child:
+                                                  (post
+                                                          .user
+                                                          ?.profilePictureUrl
+                                                          ?.isEmpty ??
+                                                      true)
+                                                  ? const Icon(Icons.person)
+                                                  : null,
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 12),
+                                        Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              post.user?.username ?? 'Unknown',
+                                              style: const TextStyle(
+                                                fontSize: 16,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                            Text(
+                                              'Just now',
+                                              style: TextStyle(
+                                                fontSize: 12,
+                                                color: Colors.grey[600],
+                                              ),
+                                            ),
                                           ],
                                         ),
-                                      ),
-                                      padding: const EdgeInsets.all(2),
-                                      child: CircleAvatar(
-                                        radius: 26,
-                                        backgroundColor: Colors.white,
-                                        child: CircleAvatar(
-                                          radius: 24,
-                                          backgroundImage:
-                                              (post
-                                                      .user
-                                                      ?.profilePictureUrl
-                                                      ?.isNotEmpty ??
-                                                  false)
-                                              ? NetworkImage(
-                                                  post.user!.profilePictureUrl!,
-                                                )
-                                              : null,
-                                          child:
-                                              (post
-                                                      .user
-                                                      ?.profilePictureUrl
-                                                      ?.isEmpty ??
-                                                  true)
-                                              ? const Icon(Icons.person)
-                                              : null,
-                                        ),
-                                      ),
+                                      ],
                                     ),
-                                    const SizedBox(width: 12),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            post.user?.username ?? 'Unknown',
-                                            style: const TextStyle(
-                                              fontSize: 16,
-                                              fontWeight: FontWeight.bold,
-                                            ),
-                                          ),
-                                          Text(
-                                            'Just now',
-                                            style: TextStyle(
-                                              fontSize: 12,
-                                              color: Colors.grey[600],
-                                            ),
-                                          ),
-                                        ],
-                                      ),
+                                  ),
+                                  const Spacer(),
+                                  IconButton(
+                                    icon: Icon(
+                                      Icons.more_vert,
+                                      color: Colors.grey[600],
                                     ),
-                                    IconButton(
-                                      icon: Icon(
-                                        Icons.more_vert,
-                                        color: Colors.grey[600],
-                                      ),
-                                      onPressed: () {},
-                                    ),
-                                  ],
-                                ),
+                                    onPressed: () =>
+                                        _showPostActions(context, post),
+                                  ),
+                                ],
                               ),
                             ),
 
